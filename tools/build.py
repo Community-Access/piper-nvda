@@ -1,7 +1,8 @@
 """Build the Piper .nvda-addon package.
 
 Steps: cargo build --release (unless --skip-cargo); stage the addon tree;
-copy the helper exe, DLLs, and espeak-ng into synthDrivers/piper/bin; render
+copy the helper exe, the Visual C++ runtime, and espeak-ng into
+synthDrivers/piper/bin; render
 the readme; zip into dist/piper-neural-<version>.nvda-addon. Voices are not
 bundled; they download at runtime.
 
@@ -9,6 +10,7 @@ Usage: python tools/build.py [--skip-cargo]
 """
 
 import configparser
+import glob
 import os
 import shutil
 import subprocess
@@ -45,6 +47,57 @@ def _copy(src, dst):
     shutil.copy2(src, dst)
 
 
+#: The Visual C++ runtime the helper and espeak-ng link against. These are not
+#: part of Windows; without them the helper cannot start on a machine that has
+#: never had the Visual C++ redistributable installed. Shipping them beside the
+#: executable removes that prerequisite, which Microsoft's redistribution terms
+#: allow. The executable's directory is searched first for both it and the
+#: espeak DLL it loads, so one copy here covers both.
+CRT_DLLS = ("msvcp140.dll", "msvcp140_1.dll",
+            "vcruntime140.dll", "vcruntime140_1.dll")
+
+
+def find_crt_dir():
+    """The newest x64 VC redistributable directory holding every CRT DLL.
+
+    `PIPER_CRT_DIR` overrides the search, for build machines that keep the
+    redistributable somewhere else.
+    """
+    override = os.environ.get("PIPER_CRT_DIR")
+    if override:
+        return override if _has_crt(override) else None
+    patterns = []
+    for root in (os.environ.get("ProgramFiles(x86)"),
+                 os.environ.get("ProgramFiles")):
+        if root:
+            patterns.append(os.path.join(
+                root, "Microsoft Visual Studio", "*", "*", "VC", "Redist",
+                "MSVC", "*", "x64", "Microsoft.VC*.CRT"))
+    candidates = [d for pattern in patterns for d in glob.glob(pattern)
+                  if _has_crt(d)]
+    if not candidates:
+        return None
+    # Directory names carry the toolset version, so the last one sorts newest.
+    return sorted(candidates)[-1]
+
+
+def _has_crt(directory):
+    return all(os.path.isfile(os.path.join(directory, name))
+               for name in CRT_DLLS)
+
+
+def copy_crt(bin_dir):
+    source = find_crt_dir()
+    if source is None:
+        raise SystemExit(
+            "Visual C++ runtime not found. Install the Visual Studio Build "
+            "Tools with the C++ workload, or set PIPER_CRT_DIR to a directory "
+            "containing: " + ", ".join(CRT_DLLS))
+    for name in CRT_DLLS:
+        _copy(os.path.join(source, name), os.path.join(bin_dir, name))
+    print("bundled the Visual C++ runtime from %s" % source)
+
+
 def stage():
     if os.path.exists(BUILD):
         shutil.rmtree(BUILD)
@@ -59,6 +112,7 @@ def stage():
     os.makedirs(bin_dir, exist_ok=True)
     _copy(os.path.join(RELEASE, "piper-helper.exe"),
           os.path.join(bin_dir, "piper-helper.exe"))
+    copy_crt(bin_dir)
     for dll in ("onnxruntime.dll",):
         src = os.path.join(RELEASE, dll)
         if os.path.isfile(src):

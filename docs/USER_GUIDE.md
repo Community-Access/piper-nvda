@@ -13,7 +13,10 @@ before downloading it.
 ## System requirements
 
 - NVDA 2025.1 or later (including 64-bit NVDA 2026.1 and later).
-- Windows 10 (64-bit) or Windows 11.
+- Windows 10 (64-bit) or Windows 11. Windows 8.1 will not work: the speech
+  engine is built against components that Windows 10 introduced.
+- Nothing else. The add-on brings the Visual C++ runtime it needs with it, so
+  there is no separate redistributable to install.
 - About 60 to 120 MB of disk per voice you download. The add-on itself is
   small; voices are downloaded on demand.
 - An internet connection is needed only while downloading voices and demos.

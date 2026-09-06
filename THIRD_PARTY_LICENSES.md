@@ -9,7 +9,8 @@ dependencies change (`cargo tree -e normal --depth 1` for the Rust side).
 | Component | Role | Licence | Source |
 |-----------|------|---------|--------|
 | espeak-ng | Text to phonemes, loaded by the helper as `libespeak-ng.dll` | GPL-3.0-or-later | https://github.com/espeak-ng/espeak-ng |
-| ONNX Runtime | Neural network inference, linked into `piper-helper.exe` | MIT | https://github.com/microsoft/onnxruntime |
+| ONNX Runtime | Neural network inference, statically linked into `piper-helper.exe` | MIT | https://github.com/microsoft/onnxruntime |
+| Visual C++ runtime | `msvcp140.dll`, `msvcp140_1.dll`, `vcruntime140.dll`, `vcruntime140_1.dll`, which the helper and espeak-ng link against | Microsoft redistributable | Redistributed under the Visual Studio distributable-code terms, from the Visual Studio Build Tools' own redistributable directory. Shipping them beside the executable means users need no separate redistributable install. |
 
 Because espeak-ng is GPL v3 and is loaded by the helper, `piper-helper.exe` is
 distributed under GPL-v3-compatible terms.

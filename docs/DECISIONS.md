@@ -103,6 +103,35 @@ an optimization. Removing it also took 18.5 MB off the download. Reverting
 would need measurements on a discrete GPU showing a win on *short* utterances,
 not just on long ones.
 
+**What removing it did not do.** The prebuilt ONNX Runtime that `ort`
+downloads is a DirectML-enabled build, and the cargo feature only gated the
+Rust-side API, so `piper-helper.exe` still imports `DirectML.dll`,
+`d3d12.dll`, and `dxgi.dll` at load time. Those are inbox from Windows 10
+(DirectML from version 1903), which is why the supported floor is Windows 10
+and not Windows 8.1. Dropping the imports needs a CPU-only runtime, which
+means `ort`'s `load-dynamic` and shipping our own `onnxruntime.dll`;
+`tools/pe_imports.py` is what makes the current state checkable.
+
+## The Visual C++ runtime ships inside the add-on
+
+**Context.** Both `piper-helper.exe` and `libespeak-ng.dll` link against
+`msvcp140.dll` and `vcruntime140.dll`. Those are not part of Windows; they
+come from the Visual C++ redistributable. On a machine that has never had it
+installed the helper cannot start, and the failure is a bare missing-DLL
+error that says nothing useful. The other Piper add-ons for NVDA document the
+redistributable as a prerequisite the user must go and install.
+
+**Decision.** Ship the four runtime DLLs beside `piper-helper.exe`, from the
+Build Tools' redistributable directory, and fail the packaging step loudly if
+they cannot be found.
+
+**Consequences.** No prerequisites: installing the add-on is enough. The cost
+is 768 KB and a build-machine requirement. One copy covers espeak-ng too,
+because implicit imports resolve from the *executable's* directory rather than
+from the directory of the DLL that needs them. Copies from `System32` are
+deliberately not used, since a release should not depend on whatever happens
+to be installed on the build machine; `PIPER_CRT_DIR` is the escape hatch.
+
 ## One control by default, the raw parameters behind advanced mode
 
 **Context.** Piper voices carry `noise_scale`, `noise_w`, and `length_scale`.

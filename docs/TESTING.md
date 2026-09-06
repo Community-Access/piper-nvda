@@ -152,6 +152,10 @@ if available, a second machine with a slower CPU to sanity-check latency.
       `__pycache__`/`.pyc` and with the helper and espeak payload present.
 - [ ] Manual matrix passed on 32-bit and 64-bit NVDA.
 - [ ] Accessibility pass completed on all five dialogs.
+- [ ] `python tools/pe_imports.py addon/synthDrivers/piper/bin/piper-helper.exe`
+      lists nothing beyond `api-ms-win-*` apisets, core Windows DLLs, and
+      files the package ships. Anything else is a dependency users would have
+      to install themselves.
 - [ ] `python tools/i18n.py extract` run and `nvda.pot` committed if strings
       changed (the `test_pot_is_current` test enforces this).
 - [ ] `python tools/i18n.py compile` reports no unreadable `.po` files.

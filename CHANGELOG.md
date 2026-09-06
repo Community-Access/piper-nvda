@@ -3,6 +3,29 @@
 All notable changes to this add-on are documented here. This project follows
 [Semantic Versioning](https://semver.org): major.minor.patch.
 
+## [0.4.1] - 2026-09-06
+
+### Fixed
+- The add-on now bundles the Visual C++ runtime (`msvcp140.dll`,
+  `msvcp140_1.dll`, `vcruntime140.dll`, `vcruntime140_1.dll`). Both the helper
+  and espeak-ng link against it, and it is not part of Windows, so on a
+  machine that had never had the Visual C++ redistributable installed the
+  helper failed to start with a bare missing-DLL error. There are now no
+  prerequisites at all. Packaging fails loudly if the runtime cannot be found
+  rather than shipping without it.
+
+### Added
+- `tools/pe_imports.py`, which lists what a packaged binary actually depends
+  on at run time. `dumpbin` is not present on a machine with only the Rust
+  toolchain, and static linking hides these dependencies from the source.
+
+### Changed
+- Documented that Windows 10 (64-bit) or Windows 11 is required, and why: the
+  ONNX Runtime build in use imports DirectML and Direct3D 12, which Windows
+  8.1 does not have. Removing the DirectML *option* in 0.2.0 did not remove
+  those imports, because the prebuilt runtime is a DirectML build and the
+  cargo feature only gated the Rust-side API.
+
 ## [0.4.0] - 2026-09-06
 
 ### Fixed

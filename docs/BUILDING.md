@@ -8,6 +8,11 @@
   written to run on NVDA's embedded Python, which is 3.11 on NVDA 2025.x and
   3.13 on 2026.1+; avoid syntax newer than 3.11 in `addon/`.)
 - **Windows 10/11 64-bit**.
+- **Visual Studio Build Tools with the C++ workload**, for the redistributable
+  copies of the Visual C++ runtime that packaging bundles. Packaging fails
+  with an explanation if it cannot find them; `PIPER_CRT_DIR` points it at a
+  directory holding `msvcp140.dll`, `msvcp140_1.dll`, `vcruntime140.dll`, and
+  `vcruntime140_1.dll` if yours live somewhere unusual.
 - Internet access for the first build (to download crates and dev assets).
 
 You do not need NVDA installed to build or run the automated tests, but you
@@ -57,9 +62,12 @@ python tools/build.py
 ```
 
 This runs `cargo build --release`, stages the `addon/` tree, compiles the
-translations, copies `piper-helper.exe`, `onnxruntime.dll`, and the espeak-ng
-runtime into `synthDrivers/piper/bin/`, renders `doc/en/readme.html` from the
-Markdown, and writes `dist/piper-neural-<version>.nvda-addon`.
+translations, copies `piper-helper.exe`, the Visual C++ runtime, and the
+espeak-ng runtime into `synthDrivers/piper/bin/`, renders `doc/en/readme.html`
+from the Markdown, and writes `dist/piper-neural-<version>.nvda-addon`.
+
+ONNX Runtime is statically linked into the executable, so there is no
+`onnxruntime.dll` to copy.
 
 Use `--skip-cargo` to package without rebuilding the helper:
 
@@ -78,7 +86,10 @@ installTasks.py
 doc/en/readme.html
 synthDrivers/piper/*.py
 synthDrivers/piper/bin/piper-helper.exe
-synthDrivers/piper/bin/onnxruntime.dll
+synthDrivers/piper/bin/msvcp140.dll
+synthDrivers/piper/bin/msvcp140_1.dll
+synthDrivers/piper/bin/vcruntime140.dll
+synthDrivers/piper/bin/vcruntime140_1.dll
 synthDrivers/piper/bin/espeak-ng/libespeak-ng.dll
 synthDrivers/piper/bin/espeak-ng/espeak-ng-data/...
 globalPlugins/piperManager/__init__.py

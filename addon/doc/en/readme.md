@@ -5,6 +5,9 @@ offline. Inference happens in a bundled 64-bit helper process, so it works on
 both 32-bit NVDA (2025.x) and 64-bit NVDA (2026.1+), and a crash in the model
 can never take down NVDA.
 
+Requires Windows 10 (64-bit) or Windows 11. Nothing else needs installing:
+the Visual C++ runtime the speech engine uses ships inside the add-on.
+
 ## First use
 
 1. Open NVDA menu, Tools, "Piper voice manager".

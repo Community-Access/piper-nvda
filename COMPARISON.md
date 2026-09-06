@@ -11,7 +11,7 @@ add-on that shares this project's architecture.
 | [Sonata Neural Voices](https://github.com/mush42/sonata-nvda) | Last release v3.1.0, June 2024 | Rust `sonata` engine over gRPC, ONNX Runtime, espeak-ng |
 | [Dengjen Neural Voices](https://github.com/OnjLouis/dengjen-nvda) | Maintained fork of Sonata; documents NVDA 2025.1 through 2026.1 | Same engine, kept building against current NVDA |
 | [rmcpantoja/piper-nvda](https://github.com/rmcpantoja/piper-nvda) | Separate Piper driver | Piper |
-| This add-on | 0.4.0 | Rust helper over stdio, ONNX Runtime, espeak-ng |
+| This add-on | 0.4.1 | Rust helper over stdio, ONNX Runtime, espeak-ng |
 
 Sonata is the original and is no longer released; Dengjen is the version to
 compare against, and is the one this document means whenever it says "the
@@ -88,6 +88,9 @@ These follow from the design rather than from a benchmark:
 - **Complete NVDA synth API.** Every synth-facing command NVDA defines is
   implemented, including `PhonemeCommand`, so a pronunciation NVDA supplies is
   spoken as given rather than falling back to its plain text.
+- **No prerequisites.** The Visual C++ runtime ships inside the add-on, so
+  installing it is enough. The Sonata family documents the Visual C++
+  redistributable as something the user must install first.
 - **Voices it cannot speak are refused.** Six published voices declare a
   phonemizer no NVDA Piper add-on bundles. This add-on reads `phoneme_type`
   and explains the problem before downloading the model, rather than
