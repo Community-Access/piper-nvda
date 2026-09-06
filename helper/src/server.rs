@@ -205,7 +205,13 @@ pub fn run(paths: &Paths) -> Result<()> {
             msg_type::LOAD_VOICE => {
                 if let Ok(lv) = serde_json::from_slice::<p::LoadVoice>(&payload) {
                     if shared.cache_enabled.load(Ordering::SeqCst) {
-                        enqueue_warmup(&shared, &lv.voice, lv.scales, &lv.extra_words);
+                        enqueue_warmup(
+                            &shared,
+                            &lv.voice,
+                            lv.scales,
+                            &lv.extra_words,
+                            lv.skip_builtin_symbols,
+                        );
                     }
                 }
             }
@@ -319,8 +325,9 @@ fn enqueue_warmup(
     model_path: &str,
     scales: p::Scales,
     extra_words: &[String],
+    skip_builtin_symbols: bool,
 ) {
-    let items = warmup_items(model_path, scales, extra_words);
+    let items = warmup_items(model_path, scales, extra_words, skip_builtin_symbols);
     let mut work = shared.work.lock().unwrap();
     // Re-warming for a new voice or variance makes queued items pointless.
     work.warmup.clear();
@@ -330,7 +337,12 @@ fn enqueue_warmup(
 }
 
 /// Everything worth preparing for a voice, in the order it is prepared.
-fn warmup_items(model_path: &str, scales: p::Scales, extra_words: &[String]) -> Vec<WarmupItem> {
+fn warmup_items(
+    model_path: &str,
+    scales: p::Scales,
+    extra_words: &[String],
+    skip_builtin_symbols: bool,
+) -> Vec<WarmupItem> {
     let mut items = Vec::new();
     let mut push = |text: &str| {
         items.push(WarmupItem {
@@ -350,8 +362,12 @@ fn warmup_items(model_path: &str, scales: p::Scales, extra_words: &[String]) -> 
     for symbol in WARMUP_SYMBOLS {
         push(symbol);
     }
-    for name in WARMUP_SYMBOL_NAMES {
-        push(name);
+    // The driver sends these in the user's own language when it can, and
+    // then the English ones would only be prepared to be never asked for.
+    if !skip_builtin_symbols {
+        for name in WARMUP_SYMBOL_NAMES {
+            push(name);
+        }
     }
     for number in WARMUP_NUMBERS {
         push(number);
@@ -694,7 +710,7 @@ mod tests {
     use super::*;
 
     fn items(extra: &[String]) -> Vec<WarmupItem> {
-        warmup_items("voice.onnx", p::Scales::default(), extra)
+        warmup_items("voice.onnx", p::Scales::default(), extra, false)
     }
 
     #[test]
@@ -710,6 +726,20 @@ mod tests {
         // Numbers, as digits and as words.
         assert!(texts.contains(&"seventeen"));
         // And the roles and states NVDA says constantly.
+        assert!(texts.contains(&"button"));
+    }
+
+    #[test]
+    fn the_driver_can_supply_the_symbol_names_itself() {
+        // A French user should prepare "point", not "dot".
+        let localized = vec!["point".to_string(), "virgule".to_string()];
+        let prepared = warmup_items(
+            "voice.onnx", p::Scales::default(), &localized, true);
+        let texts: Vec<&str> = prepared.iter().map(|i| i.text.as_str()).collect();
+        assert!(texts.contains(&"point"));
+        assert!(!texts.contains(&"bang"), "English names were prepared anyway");
+        // The characters and everything else are still prepared.
+        assert!(texts.contains(&"!") && texts.contains(&"a"));
         assert!(texts.contains(&"button"));
     }
 

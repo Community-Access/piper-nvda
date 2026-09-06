@@ -254,10 +254,14 @@ class SynthDriver(SynthDriverBase):
         model = _paths.voice_model_path(self._voice)
         if os.path.isfile(model):
             try:
+                symbols = _warmup.symbol_words()
                 self._helper.send(proto.LOAD_VOICE, {
                     "voice": model,
                     "scales": self._scales(),
-                    "extraWords": self._warmup_words,
+                    "extraWords": self._warmup_words + symbols,
+                    # With NVDA's own names in hand, the helper's English
+                    # list would only be prepared to never be asked for.
+                    "skipBuiltinSymbols": bool(symbols),
                 })
             except Exception:
                 pass

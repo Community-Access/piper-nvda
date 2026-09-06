@@ -297,9 +297,29 @@ def wired(driver, tmp_path, monkeypatch):
 def test_warmup_request_carries_the_users_phrases(wired):
     wired._request_warmup()
     payload = wired._helper.payload(proto.LOAD_VOICE)
-    assert payload["extraWords"] == ["Inbox"]
+    # The user's own phrases come first; NVDA's symbol names follow.
+    assert payload["extraWords"][0] == "Inbox"
     assert payload["scales"] == {"noiseScale": 1.0, "noiseW": 1.0,
                                  "lengthScale": 1.0}
+
+
+def test_warmup_request_carries_nvdas_symbol_names(wired):
+    """The helper's own list is English, which is no use to a French user."""
+    wired._request_warmup()
+    payload = wired._helper.payload(proto.LOAD_VOICE)
+    assert "dot" in payload["extraWords"]
+    # And the helper is told not to prepare its English list as well.
+    assert payload["skipBuiltinSymbols"] is True
+
+
+def test_the_helpers_own_list_is_used_when_nvda_cannot_be_asked(wired,
+                                                                monkeypatch):
+    from synthDrivers.piper import _warmup
+    monkeypatch.setattr(_warmup, "symbol_words", lambda language=None: [])
+    wired._request_warmup()
+    payload = wired._helper.payload(proto.LOAD_VOICE)
+    assert payload["extraWords"] == ["Inbox"]
+    assert payload["skipBuiltinSymbols"] is False
 
 
 def test_turning_the_cache_off_stops_preparing(wired):
@@ -330,8 +350,8 @@ def test_rebuilding_with_the_cache_off_only_clears(wired):
 def test_reloading_phrases_picks_up_the_saved_list(wired):
     wired.reload_warmup_words()
     assert wired._warmup_words == ["Inbox", "stand by"]
-    assert wired._helper.payload(proto.LOAD_VOICE)["extraWords"] == [
-        "Inbox", "stand by"]
+    words = wired._helper.payload(proto.LOAD_VOICE)["extraWords"]
+    assert words[:2] == ["Inbox", "stand by"]
 
 
 def test_lone_symbols_are_given_their_spoken_name(driver):

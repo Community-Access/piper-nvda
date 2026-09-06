@@ -139,7 +139,16 @@ Run through this matrix on each supported configuration:
 
 ### Accessibility pass on the dialogs
 
-Automated tests can only prove the manager's dialogs import. Every dialog
+`test_dialog_accessibility.py` reads the dialog source and checks what is
+decidable without running it: every dialog has a title and puts focus
+somewhere, every control has a label, no two controls in a dialog claim the
+same accelerator, no accelerator sits on a space, and every field or list has
+a static text to label it. It found five colliding accelerators in the voice
+browser and a dialog that never set focus, which is the sort of thing a person
+auditing by ear should not have to spend attention on.
+
+What it cannot judge is whether an announcement is *useful*, which is the rest
+of the job. Automated tests otherwise only prove the dialogs import. Every dialog
 (voice manager, Import voices, Pronunciations, Pronunciation entry, Language
 voices, Prepared audio, Download several, Back up or restore) needs a
 keyboard-only pass before release:

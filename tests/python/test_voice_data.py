@@ -427,3 +427,34 @@ def test_reset_keeps_downloaded_voices(tmp_path):
     _backup.reset()
     assert _lexicon.load() == (0, {})
     assert _paths.voice_installed("en_US-lessac-medium")
+
+
+# -- symbol names in the user's own language --------------------------------
+
+def test_symbol_words_come_from_nvda_in_the_users_language():
+    """The helper's list is English; someone reading French needs "point",
+    not "dot", and NVDA is what knows the difference."""
+    english = _warmup.symbol_words("en")
+    assert "dot" in english and "comma" in english and "space" in english
+
+    french = _warmup.symbol_words("fr")
+    assert "point" in french and "virgule" in french
+    assert "dot" not in french
+
+
+def test_symbol_words_skip_characters_nvda_cannot_name():
+    # The stub only names a handful; the rest come back unchanged and are the
+    # helper's business, not ours.
+    names = _warmup.symbol_words("en")
+    assert "!" not in names and "~" not in names
+
+
+def test_symbol_words_are_empty_when_nvda_cannot_be_asked(monkeypatch):
+    import characterProcessing
+
+    def explode(locale, symbol):
+        raise RuntimeError("no symbol data")
+
+    monkeypatch.setattr(characterProcessing, "processSpeechSymbol", explode)
+    # The helper falls back to its own list rather than preparing nothing.
+    assert _warmup.symbol_words("en") == []

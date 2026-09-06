@@ -151,6 +151,11 @@ pub struct LoadVoice {
     /// Phrases to prepare in addition to the built-in list, from the user.
     #[serde(default)]
     pub extra_words: Vec<String>,
+    /// True when the driver has supplied the symbol names itself, in the
+    /// user's own language, so the built-in English ones are just wasted
+    /// idle time.
+    #[serde(default)]
+    pub skip_builtin_symbols: bool,
 }
 
 /// Turn background preparation and caching on or off.

@@ -31,8 +31,51 @@ MAX_LENGTH = 40
 MAX_ENTRIES = 500
 
 
+#: The characters worth preparing the spoken name of. Reading by character
+#: and spelling a word are where a delay is felt most, and punctuation is as
+#: common there as letters.
+SYMBOL_CHARACTERS = (
+    " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
+    "–—‘’“”…•°©®™€£¥¢§¶"
+    "×÷±≠≤≥→←↑↓½¼¾«»"
+)
+
+
 def path():
     return os.path.join(_paths.data_dir(), "warmup.json")
+
+
+def symbol_words(language=None):
+    """The names NVDA gives punctuation, in the user's own language.
+
+    The helper carries an English list, which is no use to someone reading
+    French: it would prepare "dot" while NVDA says "point". NVDA knows the
+    names for every locale it ships, so ask it rather than shipping tables we
+    cannot check. Returns an empty list when NVDA cannot be asked, and the
+    helper's own list is used instead.
+    """
+    try:
+        import characterProcessing
+        import languageHandler
+        locale = language or languageHandler.getLanguage()
+    except Exception:
+        return []
+    names = []
+    seen = set()
+    for character in SYMBOL_CHARACTERS:
+        try:
+            name = characterProcessing.processSpeechSymbol(locale, character)
+        except Exception:
+            return []
+        # A character with no name comes back unchanged, and preparing the
+        # character itself is the helper's job.
+        if not name or name == character or len(name) > MAX_LENGTH:
+            continue
+        key = name.lower()
+        if key not in seen:
+            seen.add(key)
+            names.append(name)
+    return names
 
 
 def clean(words):

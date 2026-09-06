@@ -34,6 +34,19 @@ The release that makes the add-on configurable rather than merely capable.
   audio are left out: both can be produced again. The same dialog can reset
   every setting, after asking, keeping your voices.
 
+- **Symbol names prepared in your own language.** The names of punctuation
+  are now taken from NVDA for the current locale and sent to the helper, so a
+  French user prepares "point" and "virgule" rather than the English names
+  they would never hear. The helper's English list remains as the fallback
+  for when NVDA cannot be asked.
+
+### Fixed
+- Five controls in the voice manager shared an accelerator with another
+  control, so Alt plus that letter could not reach them, and the backup dialog
+  never put focus anywhere. Found by a new test that reads the dialog source
+  and checks what is decidable without running it: titles, initial focus,
+  labels, accelerator collisions, and accelerators that sit on a space.
+
 ### Changed
 - Rate boost reaches considerably further. It is off by default and changes
   nothing until it is turned on, so ordinary rate settings sound exactly as

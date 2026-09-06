@@ -81,11 +81,6 @@ msgstr ""
 msgid "&Import"
 msgstr ""
 
-#. Translators: import voices installed by other add-ons.
-#: synthDrivers/piper/_manager_ui.py:314
-msgid "&Import voices..."
-msgstr ""
-
 #. Translators: checkbox limiting the list to downloaded voices.
 #: synthDrivers/piper/_manager_ui.py:258
 msgid "&Installed only"
@@ -167,11 +162,6 @@ msgstr ""
 msgid "&Search:"
 msgstr ""
 
-#. Translators: stop the demo.
-#: synthDrivers/piper/_manager_ui.py:278
-msgid "&Stop demo"
-msgstr ""
-
 #. Translators: label for the list of importable voices.
 #: synthDrivers/piper/_manager_ui.py:690
 msgid "&Voices found on this computer:"
@@ -240,12 +230,12 @@ msgid "Back up or restore settings"
 msgstr ""
 
 #. Translators: {count} settings files were saved.
-#: synthDrivers/piper/_manager_ui.py:1298
+#: synthDrivers/piper/_manager_ui.py:1299
 msgid "Backed up {count} settings files"
 msgstr ""
 
 #. Translators: title of the open dialog for a settings backup.
-#: synthDrivers/piper/_manager_ui.py:1305
+#: synthDrivers/piper/_manager_ui.py:1306
 msgid "Choose a Piper settings backup"
 msgstr ""
 
@@ -259,7 +249,7 @@ msgid "Could not load the voice list. Check your internet connection."
 msgstr ""
 
 #. Translators: shown when a voice has a single speaker.
-#: synthDrivers/piper/__init__.py:692
+#: synthDrivers/piper/__init__.py:696
 msgid "Default"
 msgstr ""
 
@@ -278,7 +268,7 @@ msgstr ""
 
 #. Translators: opens the dialog for downloading several voices.
 #: synthDrivers/piper/_manager_ui.py:289
-msgid "Download se&veral..."
+msgid "Download s&everal..."
 msgstr ""
 
 #. Translators: title of the batch download dialog.
@@ -334,6 +324,16 @@ msgstr ""
 msgid "Fast neural text-to-speech for NVDA using Piper voices. Runs fully offline in a bundled helper process. Browse, download, and hear demos of Piper voices in many languages directly from within NVDA. Correct how any word is pronounced, choose the voice for each language, and reuse voices from other Piper add-ons. Supports indexing, spelling, automatic language switching, multi-speaker voices, and fast rate boost."
 msgstr ""
 
+#. Translators: import voices installed by other add-ons.
+#: synthDrivers/piper/_manager_ui.py:314
+msgid "I&mport voices..."
+msgstr ""
+
+#. Translators: install a voice from a file on this computer.
+#: synthDrivers/piper/_manager_ui.py:317
+msgid "I&nstall from file..."
+msgstr ""
+
 #. Translators: title of the import dialog.
 #: synthDrivers/piper/_manager_ui.py:685
 msgid "Import voices from other add-ons"
@@ -349,11 +349,6 @@ msgstr ""
 msgid "Importing failed: {error}"
 msgstr ""
 
-#. Translators: install a voice from a file on this computer.
-#: synthDrivers/piper/_manager_ui.py:317
-msgid "Install from &file..."
-msgstr ""
-
 #: synthDrivers/piper/_manager_ui.py:521
 msgid "Installed {count} voices"
 msgstr ""
@@ -364,7 +359,7 @@ msgstr ""
 
 #. Translators: choose which voice each language uses.
 #: synthDrivers/piper/_manager_ui.py:323
-msgid "Language &voices..."
+msgid "Lan&guage voices..."
 msgstr ""
 
 #. Translators: {language} is a language code such as en_US.
@@ -416,11 +411,6 @@ msgstr ""
 msgid "Opens the Piper voice manager"
 msgstr ""
 
-#. Translators: edit how particular words are pronounced.
-#: synthDrivers/piper/_manager_ui.py:320
-msgid "P&ronunciations..."
-msgstr ""
-
 #. Translators: asked on uninstall.
 #. Translators: shown when Piper has no voices yet.
 #. Translators: shown when there are no voices to assign.
@@ -435,8 +425,8 @@ msgstr ""
 #: synthDrivers/piper/_manager_ui.py:81
 #: synthDrivers/piper/_manager_ui.py:93
 #: synthDrivers/piper/_manager_ui.py:670
-#: synthDrivers/piper/_manager_ui.py:1330
-#: synthDrivers/piper/_manager_ui.py:1345
+#: synthDrivers/piper/_manager_ui.py:1331
+#: synthDrivers/piper/_manager_ui.py:1346
 #: synthDrivers/piper/_manager_ui.py:492
 #: synthDrivers/piper/_manager_ui.py:536
 #: synthDrivers/piper/_manager_ui.py:552
@@ -478,8 +468,8 @@ msgid "Piper prepares the alphabet and the words NVDA says most often while it i
 msgstr ""
 
 #. Translators: the file type of a settings backup.
-#: synthDrivers/piper/_manager_ui.py:1285
-#: synthDrivers/piper/_manager_ui.py:1307
+#: synthDrivers/piper/_manager_ui.py:1286
+#: synthDrivers/piper/_manager_ui.py:1308
 msgid "Piper settings backup (*.zip)|*.zip"
 msgstr ""
 
@@ -518,6 +508,11 @@ msgstr ""
 msgid "Preparing audio in the background"
 msgstr ""
 
+#. Translators: edit how particular words are pronounced.
+#: synthDrivers/piper/_manager_ui.py:320
+msgid "Pron&unciations..."
+msgstr ""
+
 #. Translators: title of the dialog for one pronunciation entry.
 #: synthDrivers/piper/_manager_ui.py:881
 msgid "Pronunciation entry"
@@ -554,7 +549,7 @@ msgid "Removed {word}"
 msgstr ""
 
 #. Translators: spoken after turning advanced parameters on or off.
-#: synthDrivers/piper/__init__.py:876
+#: synthDrivers/piper/__init__.py:880
 msgid "Reopen Speech settings to see the changed parameters"
 msgstr ""
 
@@ -564,22 +559,17 @@ msgid "Reset all settings..."
 msgstr ""
 
 #. Translators: {count} settings files were deleted.
-#: synthDrivers/piper/_manager_ui.py:1336
+#: synthDrivers/piper/_manager_ui.py:1337
 msgid "Reset {count} settings files"
 msgstr ""
 
 #. Translators: {count} settings files were read back in.
-#: synthDrivers/piper/_manager_ui.py:1321
+#: synthDrivers/piper/_manager_ui.py:1322
 msgid "Restored {count} settings files"
 msgstr ""
 
-#. Translators: speaks the text typed beside it.
-#: synthDrivers/piper/_manager_ui.py:306
-msgid "S&peak"
-msgstr ""
-
 #. Translators: title of the save dialog for a settings backup.
-#: synthDrivers/piper/_manager_ui.py:1282
+#: synthDrivers/piper/_manager_ui.py:1283
 msgid "Save your Piper settings"
 msgstr ""
 
@@ -588,17 +578,27 @@ msgstr ""
 msgid "Show &advanced voice parameters"
 msgstr ""
 
+#. Translators: speaks the text typed beside it.
+#: synthDrivers/piper/_manager_ui.py:306
+msgid "Spea&k"
+msgstr ""
+
 #. Translators: label for the field of text to speak as a sample.
 #: synthDrivers/piper/_manager_ui.py:299
 msgid "Speak &text:"
 msgstr ""
 
 #. Translators: {label} is a speaker name/number.
-#: synthDrivers/piper/__init__.py:703
+#: synthDrivers/piper/__init__.py:707
 msgid "Speaker {label}"
 msgstr ""
 
-#: synthDrivers/piper/_manager_ui.py:1317
+#. Translators: stop the demo.
+#: synthDrivers/piper/_manager_ui.py:278
+msgid "St&op demo"
+msgstr ""
+
+#: synthDrivers/piper/_manager_ui.py:1318
 msgid "That backup could not be restored: {error}"
 msgstr ""
 
@@ -607,7 +607,7 @@ msgstr ""
 msgid "That file could not be installed: {error}"
 msgstr ""
 
-#: synthDrivers/piper/_manager_ui.py:1295
+#: synthDrivers/piper/_manager_ui.py:1296
 msgid "The backup could not be written: {error}"
 msgstr ""
 
@@ -631,7 +631,7 @@ msgid "The pronunciations could not be saved: {error}"
 msgstr ""
 
 #. Translators: asked before throwing settings away.
-#: synthDrivers/piper/_manager_ui.py:1327
+#: synthDrivers/piper/_manager_ui.py:1328
 msgid "This deletes your pronunciations, language voices, prepared phrases and per-voice settings. Your downloaded voices are kept. Continue?"
 msgstr ""
 

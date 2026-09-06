@@ -126,7 +126,15 @@ speech: the alphabet and digits; every ASCII punctuation mark plus the common
 typographic and currency symbols; the names NVDA gives those symbols, taken
 from NVDA's own English symbol dictionary rather than guessed, since NVDA says
 "bang" for `!` and "graav" for a backtick; numbers as digits and as words; and
-the roles, states, and common words NVDA says constantly. LOAD_VOICE also carries
+the roles, states, and common words NVDA says constantly.
+
+The symbol names are the driver's contribution rather than the helper's. The
+helper carries an English list, which is no use to someone reading French: it
+would prepare "dot" while NVDA says "point". So the driver asks NVDA for the
+name of each symbol in the current locale, sends those as extra words, and
+sets `skipBuiltinSymbols`, which stops the helper spending idle time on names
+that will never be asked for. The helper's list stays as the fallback for when
+NVDA cannot be asked. LOAD_VOICE also carries
 the user's own phrases from `warmup.json`, which are queued ahead of the
 built-in words: they were asked for specifically, and preparation is idle work
 that any burst of speech interrupts. The cache is persisted to disk, so after

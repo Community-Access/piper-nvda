@@ -275,7 +275,7 @@ class VoiceBrowserDialog(wx.Dialog):
         self._demoBtn = wx.Button(self, label=_("&Play demo"))
         self._demoBtn.Bind(wx.EVT_BUTTON, self._on_demo)
         # Translators: stop the demo.
-        self._stopBtn = wx.Button(self, label=_("&Stop demo"))
+        self._stopBtn = wx.Button(self, label=_("St&op demo"))
         self._stopBtn.Bind(wx.EVT_BUTTON, lambda e: self._demo.stop())
         # One button that becomes Download or Remove depending on whether the
         # selected voice is installed.
@@ -286,7 +286,7 @@ class VoiceBrowserDialog(wx.Dialog):
         self._favBtn = wx.Button(self, label=_("&Favourite"))
         self._favBtn.Bind(wx.EVT_BUTTON, self._on_favorite)
         # Translators: opens the dialog for downloading several voices.
-        severalBtn = wx.Button(self, label=_("Download se&veral..."))
+        severalBtn = wx.Button(self, label=_("Download s&everal..."))
         severalBtn.Bind(wx.EVT_BUTTON, self._on_download_several)
         for b in (self._demoBtn, self._stopBtn, self._actionBtn, self._favBtn,
                   severalBtn):
@@ -303,7 +303,7 @@ class VoiceBrowserDialog(wx.Dialog):
         self._sample.Bind(wx.EVT_TEXT_ENTER, self._on_speak_sample)
         sampleRow.Add(self._sample, border=5, flag=wx.ALL)
         # Translators: speaks the text typed beside it.
-        self._speakBtn = wx.Button(self, label=_("S&peak"))
+        self._speakBtn = wx.Button(self, label=_("Spea&k"))
         self._speakBtn.Bind(wx.EVT_BUTTON, self._on_speak_sample)
         sampleRow.Add(self._speakBtn, border=4, flag=wx.ALL)
         main.Add(sampleRow, flag=wx.EXPAND)
@@ -311,16 +311,16 @@ class VoiceBrowserDialog(wx.Dialog):
         # Buttons for everything else the manager can do.
         tools = wx.BoxSizer(wx.HORIZONTAL)
         # Translators: import voices installed by other add-ons.
-        importBtn = wx.Button(self, label=_("&Import voices..."))
+        importBtn = wx.Button(self, label=_("I&mport voices..."))
         importBtn.Bind(wx.EVT_BUTTON, self._on_import)
         # Translators: install a voice from a file on this computer.
-        fileBtn = wx.Button(self, label=_("Install from &file..."))
+        fileBtn = wx.Button(self, label=_("I&nstall from file..."))
         fileBtn.Bind(wx.EVT_BUTTON, self._on_install_file)
         # Translators: edit how particular words are pronounced.
-        lexBtn = wx.Button(self, label=_("P&ronunciations..."))
+        lexBtn = wx.Button(self, label=_("Pron&unciations..."))
         lexBtn.Bind(wx.EVT_BUTTON, self._on_lexicon)
         # Translators: choose which voice each language uses.
-        langBtn = wx.Button(self, label=_("Language &voices..."))
+        langBtn = wx.Button(self, label=_("Lan&guage voices..."))
         langBtn.Bind(wx.EVT_BUTTON, self._on_language_voices)
         # Translators: manage the audio prepared in advance for instant echo.
         audioBtn = wx.Button(self, label=_("Prepared &audio..."))
@@ -1274,6 +1274,7 @@ class SettingsFilesDialog(wx.Dialog):
         main.Add(wx.Button(self, wx.ID_CANCEL, label=_("&Close")),
                  border=5, flag=wx.ALL | wx.ALIGN_CENTER)
         self.SetSizerAndFit(main)
+        backupBtn.SetFocus()
 
     def _on_backup(self, evt):
         dlg = wx.FileDialog(
