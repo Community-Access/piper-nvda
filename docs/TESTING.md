@@ -54,11 +54,15 @@ without NVDA. Coverage:
   translator comments, that the committed `.pot` matches the source, and a
   `.po` to `.mo` round trip read back through `gettext`, including that fuzzy
   and untranslated entries do not ship.
-- `test_full_stack.py` - drives the **real** `piper-helper.exe` through the
+- `test_full_stack.py` - first checks the helper binary is newer than
+  `helper/src`, because a stale one ignores protocol messages it does not
+  know and turns "the feature works" into "the old binary did something
+  else". Then it drives the **real** `piper-helper.exe` through the
   real `_helperProc` and `_audio` classes: speaks a phrase and checks audio,
   ordered index markers, and DONE; plays a real demo mp3 through PLAY_SAMPLE;
   proves a lexicon entry changes the audio and that clearing it restores the
-  original; proves expressiveness is cached separately; proves a
+  original; proves expressiveness is cached separately; proves the cache can
+  be switched off, switched back on without losing what it had, and rebuilt; proves a
   PhonemeCommand reaches the model as phonemes and falls back to its text
   when the voice lacks one; proves the sentence pause lengthens gaps by the
   requested amount; and proves a voice needing another phonemizer is refused

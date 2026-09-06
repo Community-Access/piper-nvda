@@ -20,6 +20,29 @@ pytestmark = pytest.mark.skipif(
     reason="helper build or assets missing",
 )
 
+SOURCE_DIR = os.path.join(ROOT, "helper", "src")
+
+
+def _newest_source_time():
+    newest = 0.0
+    for base, _dirs, files in os.walk(SOURCE_DIR):
+        for name in files:
+            if name.endswith(".rs"):
+                newest = max(newest, os.path.getmtime(os.path.join(base, name)))
+    return newest
+
+
+def test_helper_binary_is_not_stale():
+    """A stale helper ignores protocol messages it does not know, silently.
+
+    That turns "the feature works" into "the old binary did something else",
+    which is exactly how a cache test once passed for the wrong reason. Every
+    other test in this file trusts the binary, so check it first.
+    """
+    assert os.path.getmtime(HELPER) >= _newest_source_time(), (
+        "piper-helper.exe is older than helper/src; run "
+        "cargo build --release --manifest-path helper/Cargo.toml")
+
 
 class FakePlayer:
     def __init__(self):
@@ -212,9 +235,9 @@ def test_phoneme_command_audio_differs_from_the_text():
         assert as_phonemes != spoken
 
         # Phonemes the voice does not have fall back to the word they stood
-        # for, rather than going silent. The fallback reaches the model by a
-        # different route and its output is close to, but not byte-identical
-        # with, speaking the word directly, so compare duration.
+        # for, rather than going silent. The model's duration predictor is
+        # stochastic, so two runs of the same phonemes differ by a few per
+        # cent; compare duration rather than bytes.
         fallback = session.say("███", ipa=True,
                                fallbackText="tomato")
         assert fallback
@@ -278,29 +301,38 @@ def test_a_voice_needing_another_phonemizer_is_refused():
                 os.remove(path)
 
 
-def test_speech_survives_the_cache_being_switched_off_and_rebuilt():
-    """Turning preparation off, and rebuilding it, must never cost speech.
+def test_cache_can_be_switched_off_and_rebuilt():
+    """A cache hit replays exactly; a miss goes back to the model.
 
-    The model is deterministic, so audio cannot show whether a cache was
-    used; that the cache is actually bypassed and cleared is covered by the
-    helper's own tests. What matters here is that the messages leave speech
-    working.
+    The duration predictor is stochastic, so re-synthesized audio is never
+    byte-identical. That is what makes "was this cached?" observable.
     """
     session = _Session()
     try:
         first = session.say("Cache test.")
         assert first
+        # Identical bytes can only come from the cache.
         assert session.say("Cache test.") == first
 
         session.helper.send(proto.SET_CACHE, {"enabled": False})
-        assert session.say("Cache test.") == first
+        off_once = session.say("Cache test.")
+        assert off_once != first
+        assert session.say("Cache test.") != off_once
 
+        # Switching it back on finds the entry made before it was disabled,
+        # so nothing was thrown away while it was off.
         session.helper.send(proto.SET_CACHE, {"enabled": True})
-        session.helper.send(proto.CLEAR_CACHE, {})
         assert session.say("Cache test.") == first
 
-        # Unknown or malformed control messages must not wedge the worker.
+        # Rebuilding does throw it away.
+        session.helper.send(proto.CLEAR_CACHE, {})
+        rebuilt = session.say("Cache test.")
+        assert rebuilt != first
+        # And the rebuilt entry is cached in its turn.
+        assert session.say("Cache test.") == rebuilt
+
+        # A malformed control message must not wedge the worker.
         session.helper.send(proto.SET_CACHE, {"nonsense": True})
-        assert session.say("Cache test.") == first
+        assert session.say("Cache test.") == rebuilt
     finally:
         session.close()
