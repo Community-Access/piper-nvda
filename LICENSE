@@ -1,0 +1,22 @@
+Piper Neural Voices for NVDA
+Copyright (C) 2026 Jeff Bishop
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+
+The full text of the GNU General Public License version 2 is available at
+https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+
+Before publishing a release, include the full license text in this file (or a
+COPYING file alongside it), as is conventional for NVDA add-ons. Third-party
+components bundled with this add-on are listed in THIRD_PARTY_LICENSES.md;
+note in particular that the bundled espeak-ng runtime is GPL v3, which is why
+the helper executable is distributed under terms compatible with GPL v3.

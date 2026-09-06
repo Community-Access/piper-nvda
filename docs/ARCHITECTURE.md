@@ -1,0 +1,128 @@
+# Architecture
+
+This document explains how the Piper add-on is put together and why. It is
+the map to read before changing the code.
+
+## Two processes
+
+The add-on is split into an NVDA-side driver (Python) and a separate
+inference helper (a native executable). They talk over a small binary
+protocol on the helper's standard input and output.
+
+```
+NVDA process (32- or 64-bit Python)        piper-helper.exe (always x64)
+-----------------------------------        ------------------------------
+synthDrivers/piper/__init__.py             espeak-ng phonemization
+  SynthDriver: settings, speech commands   ONNX Runtime (VITS inference)
+  builds a SPEAK job  ------------------->  per-voice model, resampled to 22050 Hz
+  nvwave.WavePlayer   <------------------   PCM audio frames + index markers
+  fires index/done notifications           audio cache + idle warmup
+```
+
+### Why a separate process
+
+- **Crash isolation.** If a model or the runtime faults, only the helper
+  dies. The driver detects the closed pipe, restarts the helper, and NVDA
+  keeps talking. In-process inference would take the whole screen reader down.
+- **Bitness.** NVDA 2025.x is a 32-bit process; ONNX Runtime ships 64-bit
+  binaries. A 64-bit helper works for both 32-bit NVDA and 64-bit NVDA
+  (2026.1+) with one build. The driver contains no native code.
+- **The cost is negligible.** The inter-process round trip is about 0.06 ms
+  (measured); the audio stream is a one-way bulk transfer that overlaps
+  playback. Neither is on the critical path next to inference.
+
+## The NVDA-side driver
+
+Package `addon/synthDrivers/piper/`.
+
+- `__init__.py` - the `SynthDriver`. Declares supported settings (voice,
+  variant/speaker, rate, rate boost, pitch, volume, GPU toggle), the set of
+  speech commands it honors, and the notifications it fires. Its main job is
+  `_build_job`, which turns an NVDA speech sequence (text interleaved with
+  command objects) into a single SPEAK job of segments. Each segment records
+  which voice model to use, the speaker id, and the prosody for that span.
+- `_helperProc.py` - starts and supervises `piper-helper.exe`. A reader thread
+  dispatches inbound frames; a ping watchdog detects a hung helper; a crash
+  triggers a restart with backoff.
+- `_audio.py` - the audio pump. It receives AUDIO, MARKER, and DONE frames and
+  feeds PCM into `nvwave.WavePlayer`. Markers are turned into
+  `synthIndexReached` notifications that fire exactly when the audio before
+  them has played, which is what keeps say-all, braille tethering, and
+  spelling in sync. DONE fires `synthDoneSpeaking`.
+- `_catalog.py` - parses the HuggingFace `voices.json` index into Voice
+  records and builds the download and demo-sample URLs.
+- `_voices.py` - the installed-voice list for the driver, cross-referencing
+  installed files against the catalog (or each voice's local config).
+- `_download.py` - resumable, md5-verified downloading of a voice's model and
+  config.
+- `_manager_ui.py` - the voice browser dialog and a private `DemoPlayer` that
+  can play demos through its own helper regardless of the active synth.
+- `_protocol.py` - framing and message constants shared by the driver and the
+  tests.
+- `_paths.py` - all filesystem locations.
+
+`addon/globalPlugins/piperManager/` adds the Tools-menu entry that opens the
+voice manager.
+
+## The helper
+
+Rust crate in `helper/`, built as `piper-helper.exe`.
+
+- `main.rs` - argument parsing and three modes: the stdio server (default),
+  `--say` (write a WAV), and `--bench` (print timings).
+- `server.rs` - the server loop. One worker thread does all synthesis so
+  espeak-ng (which is not thread safe) is only ever touched from one place.
+  A single work queue holds speech jobs, demo-playback jobs, and idle warmup
+  tasks; real work always preempts warmup. A cancel bumps an atomic
+  generation counter that the worker checks between segments and chunks, so
+  stale audio is dropped immediately.
+- `config.rs` - parses a voice's `.onnx.json` (sample rate, espeak voice,
+  inference scales, `phoneme_id_map`, speaker count) and builds the model
+  input id sequence using Piper's `interspersePad` convention
+  (BOS, PAD, phoneme, PAD, ..., EOS).
+- `synth.rs` - the inference engine. It keeps a small LRU of loaded voice
+  models (each Piper voice is a separate ONNX file), assembles the VITS
+  inputs (`input`, `input_lengths`, `scales`, optional `sid`), runs the
+  session, and returns raw samples plus the model's native sample rate.
+- `espeak.rs` - loads `libespeak-ng.dll` at runtime and converts text to IPA
+  phonemes.
+- `dsp/` - leading-silence trim, WSOLA time-stretch (for rate), pitch shift,
+  volume, float-to-int16, and linear resampling (used to bring every voice to
+  the fixed 22050 Hz output rate).
+- `cache.rs` - the audio cache (see below).
+- `mp3.rs` - decodes demo sample mp3 files for playback.
+- `text.rs` - splits text into clause-sized chunks and keeps the first chunk
+  short so streaming starts quickly.
+- `protocol.rs` - the wire format.
+
+## The audio cache
+
+Synthesizing the same short text repeatedly is wasteful, and for a screen
+reader the same characters and words are spoken constantly. The helper keeps
+an LRU cache of raw model output, keyed on the voice model, character-mode
+flag, and text, but **not** on pitch, volume, or rate. Pitch and volume are
+applied as cheap DSP after the cache, and rate is applied entirely as
+post-cache time-stretch (the model always runs at its default speed). Because
+rate is not in the key, one cached entry is reused at every speech rate.
+
+On startup and voice change the driver sends a LOAD_VOICE message. The helper
+then warms the alphabet and a curated list of common NVDA words for that voice
+during idle time only, yielding to any real speech. The cache is persisted to
+disk, so after the first session character echo and common announcements are
+instant immediately.
+
+## Rate, pitch, and volume
+
+- **Rate**: NVDA rate 0-100 maps to a WSOLA time-stretch factor (about 0.6x at
+  0, natural at 50, 2.0x at 100), multiplied further by rate boost. The model
+  is not asked to change speed, which keeps the cache rate-independent.
+- **Pitch**: NVDA pitch 0-100 maps to plus or minus four semitones, applied by
+  the DSP pitch shifter. This is also what makes NVDA's capital-letter pitch
+  change work.
+- **Volume**: scales the PCM.
+
+## Sample rate
+
+Piper voices ship at different native sample rates (commonly 16000 or 22050
+Hz). The helper resamples every voice to a single 22050 Hz output so the
+NVDA-side `WavePlayer` can be created once and never has to change.
