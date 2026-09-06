@@ -3,6 +3,7 @@
 //! avoiding reloads on the hot path.
 
 use crate::config::VoiceConfig;
+use crate::protocol::Scales;
 use anyhow::{anyhow, Context, Result};
 use ort::session::builder::GraphOptimizationLevel;
 use ort::session::Session;
@@ -91,17 +92,16 @@ impl Engine {
         Ok(self.voices[model_path].config.espeak_voice.clone())
     }
 
-    /// Synthesize IPA phonemes with the given model. Speed/rate is applied
-    /// later as post-cache time-stretch, so length_scale stays at the config
-    /// default (keeps cached audio rate-independent). `variance` scales the
-    /// model's noise parameters: below 1.0 is flatter and steadier, above 1.0
-    /// is more varied.
+    /// Synthesize IPA phonemes with the given model. NVDA's rate is applied
+    /// later as post-cache time-stretch, so `scales.length_scale` is a
+    /// deliberate extra control rather than the rate setting, and stays at
+    /// 1.0 unless the user asks for something else.
     pub fn synth(
         &mut self,
         model_path: &Path,
         ipa: &str,
         sid: i64,
-        variance: f32,
+        scales: Scales,
     ) -> Result<Option<Synth>> {
         self.ensure_loaded(model_path)?;
         self.clock += 1;
@@ -114,11 +114,11 @@ impl Engine {
             return Ok(None);
         }
         let n = ids.len();
-        let variance = variance.clamp(0.0, 2.0);
+        let clamp = |value: f32| value.clamp(0.0, 2.0);
         let scales = vec![
-            loaded.config.noise_scale * variance,
-            loaded.config.length_scale,
-            loaded.config.noise_w * variance,
+            loaded.config.noise_scale * clamp(scales.noise_scale),
+            loaded.config.length_scale * clamp(scales.length_scale),
+            loaded.config.noise_w * clamp(scales.noise_w),
         ];
         let input = ort_err(Tensor::from_array(([1usize, n], ids)))?;
         let input_lengths = ort_err(Tensor::from_array(([1usize], vec![n as i64])))?;

@@ -45,16 +45,13 @@ impl AudioCache {
 
     /// Build a cache key from the fields that change model output. DSP-only
     /// fields (pitch, volume, stretch) are intentionally excluded so one
-    /// entry serves every rate, pitch, and volume. `lexicon_rev` is 0 unless
-    /// the chunk contains a pronunciation override, so editing the lexicon
-    /// only invalidates the chunks it actually affects.
-    pub fn key(voice: &str, char_mode: bool, variance: f32, lexicon_rev: u64,
+    /// entry serves every rate, pitch, and volume. `scales` is the inference
+    /// parameter multipliers, already rounded. `lexicon_rev` is 0 unless the
+    /// chunk contains a pronunciation override, so editing the lexicon only
+    /// invalidates the chunks it actually affects.
+    pub fn key(voice: &str, char_mode: bool, scales: &str, lexicon_rev: u64,
                text: &str) -> String {
-        format!(
-            "{voice}|{}|{:.2}|{lexicon_rev}|{text}",
-            char_mode as u8,
-            variance,
-        )
+        format!("{voice}|{}|{scales}|{lexicon_rev}|{text}", char_mode as u8)
     }
 
     pub fn get(&mut self, key: &str) -> Option<Vec<f32>> {
@@ -189,7 +186,7 @@ mod tests {
     #[test]
     fn put_get_roundtrip() {
         let mut c = AudioCache::new(None);
-        let k = AudioCache::key("lessac", false, 1.0, 0, "a");
+        let k = AudioCache::key("lessac", false, "1.00,1.00,1.00", 0, "a");
         assert!(c.get(&k).is_none());
         c.put(k.clone(), vec![0.1, 0.2, 0.3]);
         assert_eq!(c.get(&k), Some(vec![0.1, 0.2, 0.3]));
@@ -199,12 +196,14 @@ mod tests {
     fn key_ignores_dsp_params() {
         // pitch/volume/rate are not part of the key; they are applied as DSP
         // after the cache, so the same text+voice collides on purpose.
-        let a = AudioCache::key("v", false, 1.0, 0, "a");
-        let b = AudioCache::key("v", false, 1.0, 0, "a");
+        let plain = "1.00,1.00,1.00";
+        let a = AudioCache::key("v", false, plain, 0, "a");
+        let b = AudioCache::key("v", false, plain, 0, "a");
         assert_eq!(a, b);
-        assert_ne!(a, AudioCache::key("v", true, 1.0, 0, "a"));
-        assert_ne!(a, AudioCache::key("v", false, 1.3, 0, "a"));
-        assert_ne!(a, AudioCache::key("v", false, 1.0, 9, "a"));
+        assert_ne!(a, AudioCache::key("v", true, plain, 0, "a"));
+        assert_ne!(a, AudioCache::key("v", false, "1.30,1.00,1.00", 0, "a"));
+        assert_ne!(a, AudioCache::key("v", false, "1.00,1.20,1.00", 0, "a"));
+        assert_ne!(a, AudioCache::key("v", false, plain, 9, "a"));
     }
 
     #[test]

@@ -98,7 +98,7 @@ fn synth_all(
     let mut all = Vec::new();
     for chunk in text::split_clauses(text_in) {
         let ipa = phon.to_ipa(&chunk)?;
-        if let Some(s) = engine.synth(model, &ipa, 0, 1.0)? {
+        if let Some(s) = engine.synth(model, &ipa, 0, protocol::Scales::default())? {
             let out_sr = server::OUTPUT_SR as u32;
             let resampled = if s.sample_rate == out_sr {
                 s.samples

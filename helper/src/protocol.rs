@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 use std::io::{self, Read, Write};
 
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 
 pub mod msg_type {
     pub const HELLO: u8 = 0x01;
@@ -37,6 +37,41 @@ pub struct Hello {
     pub model_loaded: bool,
 }
 
+/// Multipliers on a voice's trained inference parameters. 1.0 everywhere
+/// keeps the voice exactly as it was trained. These are the only prosody
+/// fields that change model output, so they are part of the cache key.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Scales {
+    #[serde(default = "one")]
+    pub noise_scale: f32,
+    #[serde(default = "one")]
+    pub length_scale: f32,
+    #[serde(default = "one")]
+    pub noise_w: f32,
+}
+
+impl Default for Scales {
+    fn default() -> Self {
+        Self {
+            noise_scale: 1.0,
+            length_scale: 1.0,
+            noise_w: 1.0,
+        }
+    }
+}
+
+impl Scales {
+    /// Cache-key fragment. Rounded so tiny differences cannot fragment the
+    /// cache, and stable across serialization.
+    pub fn key_part(&self) -> String {
+        format!(
+            "{:.2},{:.2},{:.2}",
+            self.noise_scale, self.length_scale, self.noise_w
+        )
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Segment {
@@ -60,10 +95,8 @@ pub struct Segment {
     pub indexes_before: Vec<i64>,
     #[serde(default)]
     pub char_mode: bool,
-    /// Expressiveness multiplier applied to the model's noise scales.
-    /// 1.0 keeps the voice's trained default.
-    #[serde(default = "one")]
-    pub variance: f32,
+    #[serde(default)]
+    pub scales: Scales,
 }
 
 fn one() -> f32 {
@@ -99,9 +132,9 @@ pub struct SetLexicon {
 #[serde(rename_all = "camelCase")]
 pub struct LoadVoice {
     pub voice: String,
-    /// Expressiveness the cache should be warmed at (see Segment::variance).
-    #[serde(default = "one")]
-    pub variance: f32,
+    /// The scales the cache should be warmed at (see Segment::scales).
+    #[serde(default)]
+    pub scales: Scales,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -231,10 +264,29 @@ mod tests {
         assert_eq!(speak.segments[0].indexes_before, vec![3]);
         assert_eq!(speak.segments[0].stretch, 1.0);
         assert_eq!(speak.segments[0].volume, 1.0);
-        assert_eq!(speak.segments[0].variance, 1.0);
+        assert_eq!(speak.segments[0].scales.noise_scale, 1.0);
+        assert_eq!(speak.segments[0].scales.length_scale, 1.0);
+        assert_eq!(speak.segments[0].scales.noise_w, 1.0);
         assert_eq!(speak.segments[0].sid, 0);
         assert!(!speak.segments[0].char_mode);
         assert_eq!(speak.indexes_after, vec![4]);
+    }
+
+    #[test]
+    fn partial_scales_keep_voice_defaults() {
+        let json = r#"{
+            "utteranceId": 1,
+            "segments": [{
+                "text": "x", "modelPath": "m.onnx",
+                "scales": {"noiseScale": 0.5}
+            }]
+        }"#;
+        let speak: Speak = serde_json::from_str(json).unwrap();
+        let scales = speak.segments[0].scales;
+        assert_eq!(scales.noise_scale, 0.5);
+        assert_eq!(scales.length_scale, 1.0);
+        assert_eq!(scales.noise_w, 1.0);
+        assert_eq!(scales.key_part(), "0.50,1.00,1.00");
     }
 
     #[test]

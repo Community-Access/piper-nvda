@@ -100,15 +100,16 @@ Rust crate in `helper/`, built as `piper-helper.exe`.
 Synthesizing the same short text repeatedly is wasteful, and for a screen
 reader the same characters and words are spoken constantly. The helper keeps
 an LRU cache of raw model output, keyed on the voice model, character-mode
-flag, expressiveness, lexicon revision, and text, but **not** on pitch,
+flag, the inference-parameter multipliers, lexicon revision, and text, but
+**not** on pitch,
 volume, or rate. Pitch and volume are applied as cheap DSP after the cache,
 and rate is applied entirely as post-cache time-stretch (the model always runs
 at its default speed). Because rate is not in the key, one cached entry is
 reused at every speech rate.
 
-The two fields that do change model output are in the key for correctness, and
-scoped so they cost as little cache as possible. Expressiveness is a single
-setting the user rarely moves, and moving it re-warms in the background. The
+The inputs that do change model output are in the key for correctness, and
+scoped so they cost as little cache as possible. The inference parameters are
+settings the user rarely moves, and moving one re-warms in the background. The
 lexicon revision is folded in only for chunks that actually contain an
 overridden word, so adding one pronunciation entry invalidates the handful of
 chunks that use it rather than the whole cache.
@@ -150,9 +151,16 @@ voice that is no longer installed is ignored rather than failing to speak.
   the DSP pitch shifter. This is also what makes NVDA's capital-letter pitch
   change work.
 - **Volume**: scales the PCM.
-- **Expressiveness**: NVDA 0-100 maps to a 0.4x-1.6x multiplier on the
-  voice's trained `noise_scale` and `noise_w`. This is the one prosody control
-  that has to run through the model, so it is part of the cache key.
+- **Expressiveness / advanced parameters**: the only prosody controls that
+  have to run through the model, so all of them are in the cache key. In
+  simple mode one Expressiveness setting maps 0-100 onto a 0.4x-1.6x
+  multiplier applied to the voice's trained `noise_scale` and `noise_w`, and
+  `length_scale` is left alone. In advanced mode each of the three is set
+  directly as a percentage of the trained value (50 = 1.0x, 100 = 2.0x). The
+  driver sends multipliers rather than absolute numbers so that one setting
+  means the same thing across voices trained with different values.
+  `supportedSettings` is computed per instance, which is how the advanced
+  parameters replace the simple control.
 
 ## Sample rate
 

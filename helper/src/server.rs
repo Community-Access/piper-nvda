@@ -71,7 +71,7 @@ struct WarmupItem {
     model_path: String,
     text: String,
     char_mode: bool,
-    variance: f32,
+    scales: p::Scales,
 }
 
 struct Shared {
@@ -157,7 +157,7 @@ pub fn run(paths: &Paths) -> Result<()> {
             msg_type::PING => shared.send(msg_type::PONG, &serde_json::json!({})),
             msg_type::LOAD_VOICE => {
                 if let Ok(lv) = serde_json::from_slice::<p::LoadVoice>(&payload) {
-                    enqueue_warmup(&shared, &lv.voice, lv.variance);
+                    enqueue_warmup(&shared, &lv.voice, lv.scales);
                 }
             }
             msg_type::SET_LEXICON => match serde_json::from_slice::<p::SetLexicon>(&payload) {
@@ -239,7 +239,7 @@ fn worker_loop(
     }
 }
 
-fn enqueue_warmup(shared: &Shared, model_path: &str, variance: f32) {
+fn enqueue_warmup(shared: &Shared, model_path: &str, scales: p::Scales) {
     let mut work = shared.work.lock().unwrap();
     // Re-warming for a new voice or variance makes queued items pointless.
     work.warmup.clear();
@@ -248,7 +248,7 @@ fn enqueue_warmup(shared: &Shared, model_path: &str, variance: f32) {
             model_path: model_path.to_string(),
             text: ch.to_string(),
             char_mode: true,
-            variance,
+            scales,
         });
     }
     for word in WARMUP_WORDS {
@@ -256,7 +256,7 @@ fn enqueue_warmup(shared: &Shared, model_path: &str, variance: f32) {
             model_path: model_path.to_string(),
             text: (*word).to_string(),
             char_mode: false,
-            variance,
+            scales,
         });
     }
     drop(work);
@@ -266,11 +266,11 @@ fn enqueue_warmup(shared: &Shared, model_path: &str, variance: f32) {
 fn cache_key(
     model_path: &str,
     char_mode: bool,
-    variance: f32,
+    scales: &p::Scales,
     lexicon_rev: u64,
     text: &str,
 ) -> String {
-    AudioCache::key(model_path, char_mode, variance, lexicon_rev, text)
+    AudioCache::key(model_path, char_mode, &scales.key_part(), lexicon_rev, text)
 }
 
 /// IPA for one chunk, with lexicon overrides spliced in around the runs of
@@ -299,12 +299,12 @@ fn synth_chunk(
     phonemizer: &mut Phonemizer,
     model_path: &str,
     sid: i64,
-    variance: f32,
+    scales: p::Scales,
     pieces: &[Piece],
 ) -> Option<Vec<f32>> {
     let ipa = chunk_to_ipa(phonemizer, pieces)?;
     let synth = engine
-        .synth(Path::new(model_path), &ipa, sid, variance)
+        .synth(Path::new(model_path), &ipa, sid, scales)
         .ok()??;
     Some(resample(synth.samples, synth.sample_rate))
 }
@@ -325,7 +325,7 @@ fn warm_one(
 ) {
     let pieces = lex.split(&item.text);
     let rev = if lexicon::has_override(&pieces) { lex.rev() } else { 0 };
-    let key = cache_key(&item.model_path, item.char_mode, item.variance, rev, &item.text);
+    let key = cache_key(&item.model_path, item.char_mode, &item.scales, rev, &item.text);
     if cache.contains(&key) {
         return;
     }
@@ -337,7 +337,7 @@ fn warm_one(
         return;
     }
     if let Some(samples) =
-        synth_chunk(engine, phonemizer, &item.model_path, 0, item.variance, &pieces)
+        synth_chunk(engine, phonemizer, &item.model_path, 0, item.scales, &pieces)
     {
         cache.put(key, samples);
     }
@@ -398,11 +398,11 @@ fn speak_job(
             }
             let pieces = lex.split(chunk);
             let rev = if lexicon::has_override(&pieces) { lex.rev() } else { 0 };
-            let key = cache_key(&seg.model_path, seg.char_mode, seg.variance, rev, chunk);
+            let key = cache_key(&seg.model_path, seg.char_mode, &seg.scales, rev, chunk);
             let mut audio = match cache.get(&key) {
                 Some(a) => a,
                 None => match synth_chunk(
-                    engine, phonemizer, &seg.model_path, seg.sid, seg.variance, &pieces,
+                    engine, phonemizer, &seg.model_path, seg.sid, seg.scales, &pieces,
                 ) {
                     Some(a) => {
                         cache.put(key, a.clone());

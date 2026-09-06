@@ -26,6 +26,9 @@ remove voices.
 - Pitch and Volume.
 - Expressiveness: how much the voice varies its delivery. 50 is the voice as
   trained; lower is flatter and steadier, higher is more animated.
+- Show advanced voice parameters: replaces Expressiveness with Piper's own
+  noise scale, noise W, and length scale, each as a percentage of the voice's
+  trained value (50 = as trained). Reopen Speech settings after toggling it.
 
 ## Performance
 

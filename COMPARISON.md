@@ -11,7 +11,7 @@ add-on that shares this project's architecture.
 | [Sonata Neural Voices](https://github.com/mush42/sonata-nvda) | Last release v3.1.0, June 2024 | Rust `sonata` engine over gRPC, ONNX Runtime, espeak-ng |
 | [Dengjen Neural Voices](https://github.com/OnjLouis/dengjen-nvda) | Maintained fork of Sonata; documents NVDA 2025.1 through 2026.1 | Same engine, kept building against current NVDA |
 | [rmcpantoja/piper-nvda](https://github.com/rmcpantoja/piper-nvda) | Separate Piper driver | Piper |
-| This add-on | 0.2.0 | Rust helper over stdio, ONNX Runtime, espeak-ng |
+| This add-on | 0.3.0 | Rust helper over stdio, ONNX Runtime, espeak-ng |
 
 Sonata is the original and is no longer released; Dengjen is the version to
 compare against, and is the one this document means whenever it says "the
@@ -85,6 +85,12 @@ These follow from the design rather than from a benchmark:
   voices may exhibit incorrect or weird pronunciation".
 - **Per-language voice assignment.** With several voices for one language, you
   choose which one automatic language switching uses.
+- **Simple by default, precise on request.** One Expressiveness control by
+  default; "Show advanced voice parameters" swaps it for `noise_scale`,
+  `noise_w`, and `length_scale` under the names Piper uses, so users coming
+  from the Sonata family get the same control they had. They are expressed as
+  percentages of each voice's trained value rather than absolute numbers, so
+  one setting means the same thing across voices.
 
 ## Where the Sonata family is still ahead
 
@@ -93,9 +99,6 @@ These follow from the design rather than from a benchmark:
 - **Translations.** Sonata ships many locales and translated documentation.
   This add-on has the extraction pipeline and a template, and no completed
   translations yet.
-- **Expressiveness controls.** Dengjen exposes `length_scale`, `noise_scale`,
-  and `noise_w` directly. This add-on exposes one Expressiveness setting
-  instead, which is easier to use but less precise.
 
 ## Switching cost
 

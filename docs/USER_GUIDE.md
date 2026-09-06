@@ -70,6 +70,35 @@ change a value).
   which many people find easier to follow at high speed; higher values are
   more animated. Changing this re-prepares the cached words in the
   background, so echo stays instant.
+- **Show advanced voice parameters**: replaces Expressiveness with the three
+  parameters the voice model actually uses. See below.
+
+### Advanced voice parameters
+
+Turn on "Show advanced voice parameters" to set Piper's own inference
+parameters individually. They keep the names Piper uses, so anything written
+about Piper voices elsewhere applies. Each is a percentage of what the voice
+was trained with, where **50 means exactly as trained** and 100 means twice
+that value:
+
+- **Noise scale (variability)**: how much the voice varies in pitch and
+  timbre. Lower is steadier and more monotone; higher is more varied.
+- **Noise W (phoneme length variation)**: how much the length of individual
+  sounds varies. Lower is more metronomic; higher is more natural but less
+  predictable.
+- **Length scale (model pace)**: how long the model makes each sound.
+  **Higher is slower.** This is not the Rate setting: Rate speeds up the audio
+  after it is produced and costs nothing, while this changes what the model
+  produces. Leave it at 50 unless a voice sounds rushed or dragged to you.
+
+Turning advanced parameters on or off changes which settings exist, so NVDA
+may need the Speech settings dialog reopened before the change is visible. The
+defaults are equivalent to Expressiveness at 50, so switching modes without
+changing anything does not change how the voice sounds.
+
+Each of these changes what the model produces, so the prepared audio for the
+alphabet and common words is rebuilt in the background after a change. Echo
+may be briefly slower until that finishes.
 
 ## Automatic language switching
 

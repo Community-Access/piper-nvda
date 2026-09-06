@@ -106,6 +106,7 @@ Run through this matrix on each supported configuration:
 | Import voices | Voices from an installed Sonata or Dengjen add-on are listed and copied in; that add-on still works afterwards |
 | Install from file | A `.tar.gz` archive and a `.onnx`+`.onnx.json` pair both install |
 | Expressiveness | Changing it audibly changes delivery, and echo stays instant once re-warmed |
+| Advanced parameters | Toggling "Show advanced voice parameters" swaps Expressiveness for the three raw parameters (reopening Speech settings if needed); each changes the voice; length scale above 50 slows the model |
 | Rate boost | Very fast speech is intelligible |
 | Cancel | Arrow/keystroke interruption is immediate |
 | Uninstall | Uninstalls cleanly; prompts about deleting voices |

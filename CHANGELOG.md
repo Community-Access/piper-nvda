@@ -3,6 +3,27 @@
 All notable changes to this add-on are documented here. This project follows
 [Semantic Versioning](https://semver.org): major.minor.patch.
 
+## [0.3.0] - 2026-09-06
+
+### Added
+- Advanced voice parameters. "Show advanced voice parameters" in the Speech
+  settings replaces the single Expressiveness control with Piper's own
+  `noise_scale`, `noise_w`, and `length_scale`, under the names Piper uses.
+  Each is a percentage of the voice's trained value, where 50 means "as
+  trained", so one setting means the same thing across voices trained with
+  different values, and the advanced defaults are identical to Expressiveness
+  at 50. This brings parity with the controls the Sonata and Dengjen add-ons
+  expose, without making every user meet three interacting numbers.
+
+### Changed
+- The driver now sends inference-parameter multipliers as a `scales` object
+  per segment instead of a single `variance` value, and all three are in the
+  audio cache key. Protocol version 2.
+- `supportedSettings` is computed per driver instance rather than fixed on the
+  class, so the advanced parameters can replace the simple control. Toggling
+  the mode refreshes the open Speech settings panel where it can, and says to
+  reopen the dialog where it cannot.
+
 ## [0.2.0] - 2026-09-06
 
 ### Added

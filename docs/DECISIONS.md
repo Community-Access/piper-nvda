@@ -25,8 +25,8 @@ constantly. Synthesizing "checkbox" from scratch every time is waste that the
 user experiences as latency.
 
 **Decision.** Cache the model's output before any DSP, keyed on voice,
-character-mode, expressiveness, lexicon revision, and text — but not on
-pitch, volume, or rate. Warm the alphabet and a curated list of common NVDA
+character-mode, the inference-parameter multipliers, lexicon revision, and
+text — but not on pitch, volume, or rate. Warm the alphabet and a curated list of common NVDA
 words during idle time and persist the cache between sessions.
 
 **Consequences.** Character echo and navigation cost no inference at all, at
@@ -103,20 +103,34 @@ an optimization. Removing it also took 18.5 MB off the download. Reverting
 would need measurements on a discrete GPU showing a win on *short* utterances,
 not just on long ones.
 
-## One Expressiveness control instead of three raw parameters
+## One control by default, the raw parameters behind advanced mode
 
 **Context.** Piper voices carry `noise_scale`, `noise_w`, and `length_scale`.
-Other add-ons expose all three directly.
+Other add-ons expose all three directly, which is precise but asks every user
+to understand three interacting numbers.
 
-**Decision.** Expose a single Expressiveness setting, 0-100, that scales the
-voice's trained `noise_scale` and `noise_w` together (0.4x to 1.6x, with 50
-meaning "as trained"). `length_scale` stays at the trained value because rate
-is handled by time-stretch.
+**Decision.** Default to a single Expressiveness setting that scales
+`noise_scale` and `noise_w` together (0.4x to 1.6x, 50 = as trained), and put
+the three raw parameters behind a "Show advanced voice parameters" toggle that
+replaces it. `supportedSettings` is computed per instance rather than fixed on
+the class, which is what lets the two sets swap.
 
-**Consequences.** One setting in the settings ring that a non-technical user
-can turn, instead of three numbers whose interaction is hard to predict. Power
-users lose direct control; if that proves to matter, the raw parameters can be
-added without changing the cache design, since variance is already in the key.
+**Decision detail: percentages, not absolute values.** Voices are trained with
+different values, so an absolute `noise_scale` of 0.667 means something
+different from voice to voice. Each advanced control is a percentage of the
+voice's own trained value, with 50 meaning "as trained". The advanced defaults
+are therefore identical to Expressiveness at 50, so toggling the mode without
+changing anything cannot change how a voice sounds.
+
+**Consequences.** A non-technical user turns one dial; a user coming from
+another Piper tool gets the parameters they already know, under the names they
+already know. The cost is that NVDA builds settings controls when the panel
+opens, so toggling the mode needs the Speech settings dialog reopened; the
+driver attempts a live refresh first and says so when it cannot.
+
+`length_scale` deserves its own warning in the user guide: it looks like a
+rate control and is not one. Rate is a post-cache time-stretch and is free;
+`length_scale` changes model output and re-warms the cache.
 
 ## Voices are read from the live catalog
 

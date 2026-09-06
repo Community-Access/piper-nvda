@@ -177,14 +177,21 @@ def test_pronunciation_override_changes_the_audio():
         session.close()
 
 
-def test_expressiveness_is_cached_separately():
-    """Variance is part of the cache key, so the same text at a different
-    expressiveness must be synthesized again rather than replayed."""
+def test_inference_parameters_are_cached_separately():
+    """The scales are part of the cache key, so the same text at different
+    settings must be synthesized again rather than replayed."""
     session = _Session()
     try:
         default = session.say("Testing expressiveness.")
-        flat = session.say("Testing expressiveness.", variance=0.4)
+        flat = session.say("Testing expressiveness.",
+                           scales={"noiseScale": 0.4, "noiseW": 0.4})
         assert default and flat != default
+
+        # length_scale changes the model's pace, so the audio gets longer.
+        slow = session.say("Testing expressiveness.",
+                           scales={"lengthScale": 1.5})
+        assert len(slow) > len(default) * 1.2, (len(default), len(slow))
+
         # The original setting still hits its own cache entry unchanged.
         assert session.say("Testing expressiveness.") == default
     finally:

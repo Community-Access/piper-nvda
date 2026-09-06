@@ -36,6 +36,10 @@ def driver():
     d._rateBoost = False
     d._variant = "0"
     d._variance = 50
+    d._advancedMode = False
+    d._noiseScale = 50
+    d._noiseW = 50
+    d._lengthScale = 50
     d._lang_voices = {}
     d._lock = threading.Lock()
     d._utterance_counter = 0
@@ -117,13 +121,49 @@ def test_available_voices(driver):
     assert voices["fr_FR-siwis-medium"].language == "fr_FR"
 
 
-def test_expressiveness_reaches_the_segment(driver):
+def _scales(driver):
+    return driver._build_job(["hi"])["segments"][0]["scales"]
+
+
+def test_expressiveness_drives_both_noise_parameters(driver):
     # 50 is the voice as trained; the helper multiplies its noise scales.
-    assert driver._build_job(["hi"])["segments"][0]["variance"] == 1.0
+    assert _scales(driver) == {"noiseScale": 1.0, "noiseW": 1.0,
+                               "lengthScale": 1.0}
     driver._variance = 0
-    assert driver._build_job(["hi"])["segments"][0]["variance"] < 1.0
+    flat = _scales(driver)
+    assert flat["noiseScale"] < 1.0 and flat["noiseW"] == flat["noiseScale"]
+    # Simple mode never touches the model's pace.
+    assert flat["lengthScale"] == 1.0
     driver._variance = 100
-    assert driver._build_job(["hi"])["segments"][0]["variance"] > 1.0
+    assert _scales(driver)["noiseScale"] > 1.0
+
+
+def test_advanced_mode_sets_each_parameter_directly(driver):
+    driver._advancedMode = True
+    # Advanced defaults are also "as trained", so switching modes at the
+    # defaults does not change how the voice sounds.
+    assert _scales(driver) == {"noiseScale": 1.0, "noiseW": 1.0,
+                               "lengthScale": 1.0}
+    driver._noiseScale = 25
+    driver._noiseW = 75
+    driver._lengthScale = 100
+    assert _scales(driver) == {"noiseScale": 0.5, "noiseW": 1.5,
+                               "lengthScale": 2.0}
+    # Expressiveness is ignored while advanced mode is on.
+    driver._variance = 0
+    assert _scales(driver)["noiseScale"] == 0.5
+
+
+def test_advanced_settings_replace_expressiveness_in_the_ui(driver):
+    ids = [s.id for s in driver._get_supportedSettings()]
+    assert "variance" in ids
+    assert "noiseScale" not in ids
+    assert "advancedMode" in ids
+
+    driver._advancedMode = True
+    ids = [s.id for s in driver._get_supportedSettings()]
+    assert ids[-3:] == ["noiseScale", "noiseW", "lengthScale"]
+    assert "variance" not in ids
 
 
 def test_assigned_language_voice_beats_the_default(driver):

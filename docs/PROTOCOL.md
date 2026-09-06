@@ -1,4 +1,4 @@
-# Driver-to-helper protocol (v1)
+# Driver-to-helper protocol (v2)
 
 The NVDA driver and `piper-helper.exe` communicate over the helper's standard
 input (driver to helper) and standard output (helper to driver). Standard
@@ -30,7 +30,7 @@ Driver to helper:
 | 0x01  | HELLO        | `{version, role, modelLoaded}` (handshake) |
 | 0x02  | SPEAK        | a Speak job (below) |
 | 0x03  | CANCEL       | `{}` - drop all queued and in-flight work |
-| 0x04  | LOAD_VOICE   | `{voice, variance}` - voice = absolute model path; triggers idle warmup at that expressiveness |
+| 0x04  | LOAD_VOICE   | `{voice, scales}` - voice = absolute model path; triggers idle warmup at those scales |
 | 0x05  | PING         | `{}` |
 | 0x06  | SHUTDOWN     | `{}` |
 | 0x07  | PLAY_SAMPLE  | `{path}` - decode and play an mp3 demo |
@@ -63,7 +63,7 @@ Helper to driver:
       "breakMsBefore": 0,
       "indexesBefore": [7],
       "charMode": false,
-      "variance": 1.0
+      "scales": {"noiseScale": 1.0, "lengthScale": 1.0, "noiseW": 1.0}
     }
   ],
   "indexesAfter": [8]
@@ -83,9 +83,11 @@ Helper to driver:
   to this segment has played. `indexesAfter` fire after the whole utterance.
 - `charMode` true means "spell": the text is spoken as a single unit
   (letter/character), not split into clauses.
-- `variance` multiplies the model's trained noise scales (1.0 = as trained).
-  Unlike the other prosody fields it changes model output, so it is part of
-  the cache key.
+- `scales` multiplies the voice's trained inference parameters (1.0 = as
+  trained, and any omitted field defaults to 1.0). Unlike the other prosody
+  fields these change model output, so they are part of the cache key. Note
+  that `lengthScale` is not the rate setting: rate is carried entirely by
+  `stretch`.
 
 ## The lexicon
 

@@ -43,7 +43,7 @@ msgid "&Edit..."
 msgstr ""
 
 #. Translators: how much the voice varies its delivery.
-#: synthDrivers/piper/__init__.py:75
+#: synthDrivers/piper/__init__.py:96
 msgid "&Expressiveness"
 msgstr ""
 
@@ -65,6 +65,16 @@ msgstr ""
 #. Translators: label for the list of languages.
 #: synthDrivers/piper/_manager_ui.py:766
 msgid "&Languages:"
+msgstr ""
+
+#. Translators: Piper's length_scale parameter.
+#: synthDrivers/piper/__init__.py:128
+msgid "&Length scale (model pace)"
+msgstr ""
+
+#. Translators: Piper's noise_scale parameter.
+#: synthDrivers/piper/__init__.py:112
+msgid "&Noise scale (variability)"
 msgstr ""
 
 #. Translators: play a voice demo.
@@ -157,7 +167,7 @@ msgid "Could not load the voice list. Check your internet connection."
 msgstr ""
 
 #. Translators: shown when a voice has a single speaker.
-#: synthDrivers/piper/__init__.py:426
+#: synthDrivers/piper/__init__.py:512
 msgid "Default"
 msgstr ""
 
@@ -255,6 +265,11 @@ msgstr ""
 msgid "No voices from other Piper add-ons were found. Sonata and Dengjen voices are detected automatically when those add-ons are installed."
 msgstr ""
 
+#. Translators: Piper's noise_w parameter.
+#: synthDrivers/piper/__init__.py:120
+msgid "Noise &W (phoneme length variation)"
+msgstr ""
+
 #. Translators: edit how particular words are pronounced.
 #: synthDrivers/piper/_manager_ui.py:239
 msgid "P&ronunciations..."
@@ -319,8 +334,18 @@ msgstr ""
 msgid "Removed {word}"
 msgstr ""
 
+#. Translators: spoken after turning advanced parameters on or off.
+#: synthDrivers/piper/__init__.py:632
+msgid "Reopen Speech settings to see the changed parameters"
+msgstr ""
+
+#. Translators: reveals the voice's raw inference parameters.
+#: synthDrivers/piper/__init__.py:85
+msgid "Show &advanced voice parameters"
+msgstr ""
+
 #. Translators: {label} is a speaker name/number.
-#: synthDrivers/piper/__init__.py:437
+#: synthDrivers/piper/__init__.py:523
 msgid "Speaker {label}"
 msgstr ""
 

@@ -13,7 +13,10 @@ from collections import OrderedDict
 import config
 import nvwave
 import synthDriverHandler
-from autoSettingsUtils.driverSetting import NumericDriverSetting
+from autoSettingsUtils.driverSetting import (
+    BooleanDriverSetting,
+    NumericDriverSetting,
+)
 from autoSettingsUtils.utils import StringParameterInfo
 from logHandler import log
 from synthDriverHandler import (
@@ -52,6 +55,11 @@ _PITCH_SEMITONE_RANGE = 4.0
 _VARIANCE_AT_MIN = 0.4
 _VARIANCE_AT_MID = 1.0
 _VARIANCE_AT_MAX = 1.6
+# Advanced mode exposes Piper's own inference parameters instead, as
+# percentages of whatever the voice was trained with: 50 is the trained value
+# and 100 is twice it. Working in percentages rather than absolute numbers
+# keeps one setting meaningful across voices that were trained differently.
+_ADVANCED_MID = 50.0
 _STRETCH_AT_MIN_RATE = 0.6
 _STRETCH_AT_MID_RATE = 1.0
 _STRETCH_AT_MAX_RATE = 2.0
@@ -62,22 +70,75 @@ class SynthDriver(SynthDriverBase):
     name = "piper"
     description = "Piper Neural Voices"
 
-    supportedSettings = (
-        SynthDriverBase.VoiceSetting(),
-        SynthDriverBase.VariantSetting(),  # speaker, for multi-speaker voices
-        SynthDriverBase.RateSetting(),
-        SynthDriverBase.RateBoostSetting(),
-        SynthDriverBase.PitchSetting(),
-        SynthDriverBase.VolumeSetting(),
-        NumericDriverSetting(
-            "variance",
-            # Translators: how much the voice varies its delivery.
-            _("&Expressiveness"),
-            availableInSettingsRing=True,
-            defaultVal=50,
-            minStep=5,
-        ),
-    )
+    @classmethod
+    def _base_settings(cls):
+        return (
+            SynthDriverBase.VoiceSetting(),
+            SynthDriverBase.VariantSetting(),  # speaker, multi-speaker voices
+            SynthDriverBase.RateSetting(),
+            SynthDriverBase.RateBoostSetting(),
+            SynthDriverBase.PitchSetting(),
+            SynthDriverBase.VolumeSetting(),
+            BooleanDriverSetting(
+                "advancedMode",
+                # Translators: reveals the voice's raw inference parameters.
+                _("Show &advanced voice parameters"),
+                defaultVal=False,
+            ),
+        )
+
+    @classmethod
+    def _simple_settings(cls):
+        return (
+            NumericDriverSetting(
+                "variance",
+                # Translators: how much the voice varies its delivery.
+                _("&Expressiveness"),
+                availableInSettingsRing=True,
+                defaultVal=50,
+                minStep=5,
+            ),
+        )
+
+    @classmethod
+    def _advanced_settings(cls):
+        """Piper's own inference parameters, named as Piper names them so
+        that people coming from other Piper tools recognize them. Each is a
+        percentage of the voice's trained value, where 50 is that value."""
+        return (
+            NumericDriverSetting(
+                "noiseScale",
+                # Translators: Piper's noise_scale parameter.
+                _("&Noise scale (variability)"),
+                availableInSettingsRing=True,
+                defaultVal=50,
+                minStep=5,
+            ),
+            NumericDriverSetting(
+                "noiseW",
+                # Translators: Piper's noise_w parameter.
+                _("Noise &W (phoneme length variation)"),
+                availableInSettingsRing=True,
+                defaultVal=50,
+                minStep=5,
+            ),
+            NumericDriverSetting(
+                "lengthScale",
+                # Translators: Piper's length_scale parameter.
+                _("&Length scale (model pace)"),
+                availableInSettingsRing=True,
+                defaultVal=50,
+                minStep=5,
+            ),
+        )
+
+    def _get_supportedSettings(self):
+        """Which settings NVDA shows. Computed rather than fixed so advanced
+        mode can reveal the raw parameters, and so the simple Expressiveness
+        control disappears when it would fight with them."""
+        if getattr(self, "_advancedMode", False):
+            return self._base_settings() + self._advanced_settings()
+        return self._base_settings() + self._simple_settings()
 
     supportedCommands = frozenset({
         IndexCommand,
@@ -102,6 +163,10 @@ class SynthDriver(SynthDriverBase):
         self._rateBoost = False
         self._variant = "0"
         self._variance = _clamp_percent(self._load_conf("variance", 50))
+        self._advancedMode = bool(self._load_conf("advancedMode", False))
+        self._noiseScale = _clamp_percent(self._load_conf("noiseScale", 50))
+        self._noiseW = _clamp_percent(self._load_conf("noiseW", 50))
+        self._lengthScale = _clamp_percent(self._load_conf("lengthScale", 50))
         self._lang_voices = _langvoices.load()
 
         self._voices = _voices.load_installed()
@@ -151,7 +216,7 @@ class SynthDriver(SynthDriverBase):
             try:
                 self._helper.send(proto.LOAD_VOICE, {
                     "voice": model,
-                    "variance": self._variance_factor(),
+                    "scales": self._scales(),
                 })
             except Exception:
                 pass
@@ -255,7 +320,7 @@ class SynthDriver(SynthDriverBase):
                 "breakMsBefore": 0,
                 "indexesBefore": [],
                 "charMode": char_mode,
-                "variance": self._variance_factor(),
+                "scales": self._scales(),
             }
 
         def open_segment():
@@ -347,6 +412,27 @@ class SynthDriver(SynthDriverBase):
             factor = _VARIANCE_AT_MID + ((value - 50) / 50.0) * (
                 _VARIANCE_AT_MAX - _VARIANCE_AT_MID)
         return round(factor, 2)
+
+    def _scales(self):
+        """The inference-parameter multipliers for the helper.
+
+        In simple mode one Expressiveness control drives both noise
+        parameters and the model's pace is left alone. In advanced mode each
+        parameter is set directly, as a percentage of the voice's trained
+        value.
+        """
+        if self._advancedMode:
+            return {
+                "noiseScale": _advanced_factor(self._noiseScale),
+                "noiseW": _advanced_factor(self._noiseW),
+                "lengthScale": _advanced_factor(self._lengthScale),
+            }
+        variance = self._variance_factor()
+        return {
+            "noiseScale": variance,
+            "noiseW": variance,
+            "lengthScale": 1.0,
+        }
 
     def _pitch_to_semitones(self, pitch):
         pitch = _clamp_percent(pitch)
@@ -441,13 +527,54 @@ class SynthDriver(SynthDriverBase):
         return self._variance
 
     def _set_variance(self, value):
+        self._set_scale_setting("variance", value)
+
+    def _get_noiseScale(self):
+        return self._noiseScale
+
+    def _set_noiseScale(self, value):
+        self._set_scale_setting("noiseScale", value)
+
+    def _get_noiseW(self):
+        return self._noiseW
+
+    def _set_noiseW(self, value):
+        self._set_scale_setting("noiseW", value)
+
+    def _get_lengthScale(self):
+        return self._lengthScale
+
+    def _set_lengthScale(self, value):
+        self._set_scale_setting("lengthScale", value)
+
+    def _set_scale_setting(self, name, value):
+        """Store one inference-parameter percentage and re-warm.
+
+        Cached audio is keyed by these values, so changing one leaves echo
+        uncached until the common words are prepared again.
+        """
         value = _clamp_percent(value)
-        if value != self._variance:
-            self._variance = value
-            self._save_conf("variance", value)
-            # Cached audio is keyed by expressiveness, so re-warm the common
-            # words at the new setting instead of leaving echo uncached.
-            self._request_warmup()
+        attr = "_" + name
+        if value == getattr(self, attr):
+            return
+        setattr(self, attr, value)
+        self._save_conf(name, value)
+        self._request_warmup()
+
+    def _get_advancedMode(self):
+        return self._advancedMode
+
+    def _set_advancedMode(self, value):
+        value = bool(value)
+        if value == self._advancedMode:
+            return
+        self._advancedMode = value
+        self._save_conf("advancedMode", value)
+        # Which settings exist has changed, so the open settings panel is now
+        # showing the wrong set.
+        if not _refresh_settings_panel():
+            _announce_settings_change()
+        self._request_warmup()
 
     def _load_conf(self, key, default):
         try:
@@ -460,6 +587,51 @@ class SynthDriver(SynthDriverBase):
             config.conf["speech"][self.name][key] = value
         except Exception:
             pass
+
+
+def _advanced_factor(percent):
+    """An advanced percentage as a multiplier of the voice's trained value:
+    50 means "as trained", 100 means twice it. Rounded because the value is
+    part of the helper's cache key."""
+    return round(_clamp_percent(percent) / _ADVANCED_MID, 2)
+
+
+def _refresh_settings_panel():
+    """Rebuild the open Speech settings panel, if there is one.
+
+    Toggling advanced mode adds or removes settings, and NVDA builds those
+    controls when the panel opens. Refreshing in place is best effort: it
+    depends on NVDA internals, so failure is not an error, only a reason to
+    tell the user to reopen the dialog.
+    """
+    try:
+        import wx
+        from gui.settingsDialogs import NVDASettingsDialog
+    except Exception:
+        return False
+    try:
+        for window in wx.GetTopLevelWindows():
+            if not isinstance(window, NVDASettingsDialog):
+                continue
+            panel = getattr(window, "currentCategory", None)
+            for candidate in (getattr(panel, "voicePanel", None), panel):
+                update = getattr(candidate, "updateDriverSettings", None)
+                if update is not None:
+                    update()
+                    return True
+    except Exception:
+        log.debug("piper: could not refresh the settings panel", exc_info=True)
+    return False
+
+
+def _announce_settings_change():
+    try:
+        import ui
+        ui.message(
+            # Translators: spoken after turning advanced parameters on or off.
+            _("Reopen Speech settings to see the changed parameters"))
+    except Exception:
+        pass
 
 
 def _clamp_percent(value):
