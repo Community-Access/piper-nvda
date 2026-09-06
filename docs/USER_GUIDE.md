@@ -222,6 +222,10 @@ add-on never deletes it:
 - **The voice list is empty or will not load.** Check your internet
   connection and try reopening the voice manager. The catalog is downloaded
   once and then cached.
+- **A character or symbol is not spoken when I arrow onto it or type it.**
+  Fixed in 0.6.1. Punctuation is spoken by name, in your language, including
+  the space character. If a symbol is still silent, check NVDA's punctuation
+  and symbol level in Speech settings, and report it with the character.
 - **A demo does not play.** Some voices may not have a hosted sample. Try
   downloading the voice and selecting it as your synthesizer to hear it.
 - **A voice says it cannot be used.** Six of the published voices (Hebrew,

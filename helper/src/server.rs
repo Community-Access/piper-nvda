@@ -3,6 +3,7 @@
 //! Also decodes and plays voice demo samples.
 
 use crate::cache::AudioCache;
+use crate::charnames;
 use crate::config::PhonemeType;
 use crate::dsp;
 use crate::espeak::Phonemizer;
@@ -425,11 +426,19 @@ fn synth_chunk(
     sid: i64,
     scales: p::Scales,
     mode: &Mode,
+    text: &str,
 ) -> Option<Vec<f32>> {
-    let ipa = match mode {
+    let mut ipa = match mode {
         Mode::Ready(text) => text.clone(),
         Mode::Espeak(pieces) => chunk_to_ipa(phonemizer, pieces)?,
     };
+    if ipa.trim().is_empty() {
+        // espeak-ng gives nothing for a punctuation character on its own: it
+        // reads it as clause punctuation and drops it. Say its name instead
+        // of saying nothing.
+        let name = charnames::name_of(text)?;
+        ipa = phonemizer.to_ipa(name).ok()?;
+    }
     let synth = engine
         .synth(Path::new(model_path), &ipa, sid, scales)
         .ok()??;
@@ -475,9 +484,15 @@ fn warm_one(
         return;
     }
     let mode = Mode::Espeak(pieces);
-    if let Some(samples) =
-        synth_chunk(engine, phonemizer, &item.model_path, 0, item.scales, &mode)
-    {
+    if let Some(samples) = synth_chunk(
+        engine,
+        phonemizer,
+        &item.model_path,
+        0,
+        item.scales,
+        &mode,
+        &item.text,
+    ) {
         cache.put(key, samples);
     }
 }
@@ -512,7 +527,13 @@ fn speak_job(
             let n = OUTPUT_SR * (seg.break_ms_before as usize) / 1000;
             emit_pcm(shared, uid, &mut seq, &vec![0i16; n]);
         }
-        let trimmed = seg.text.trim();
+        // A character being read or typed is sent on its own, and it can be
+        // a space, which trimming would turn into nothing to say.
+        let trimmed = if seg.char_mode {
+            seg.text.as_str()
+        } else {
+            seg.text.trim()
+        };
         if trimmed.is_empty() {
             continue;
         }
@@ -577,6 +598,7 @@ fn speak_job(
                 None => {
                     let mut produced = synth_chunk(
                         engine, phonemizer, &seg.model_path, seg.sid, seg.scales, &mode,
+                        chunk,
                     );
                     // Phonemes this voice does not know would come out as
                     // silence. Speak the word they stood for instead.
@@ -584,7 +606,7 @@ fn speak_job(
                         let fallback = Mode::Espeak(lex.split(&seg.fallback_text));
                         produced = synth_chunk(
                             engine, phonemizer, &seg.model_path, seg.sid, seg.scales,
-                            &fallback,
+                            &fallback, &seg.fallback_text,
                         );
                     }
                     match produced {

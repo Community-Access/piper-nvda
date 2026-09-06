@@ -34,6 +34,27 @@ any rate or pitch. This is the single largest behavioural difference from
 other Piper add-ons for NVDA. The cost is disk and memory for the cache, and
 the discipline that anything affecting model output must be in the key.
 
+## A character is never silent
+
+**Context.** espeak-ng returns no phonemes for a punctuation character sent on
+its own: it reads it as clause punctuation and drops it. Twenty characters
+behave that way, including the full stop, comma, brackets, quotes and the
+space. Reading by character or typing one of them produced silence, which is
+not a slow synthesizer but an unusable one.
+
+**Decision.** Name the character instead, in two layers. The driver asks NVDA
+for the name, because NVDA has one per locale and it is what other
+synthesizers say. The helper keeps an English table behind that, so a
+character that still arrives with no pronunciation is spoken rather than
+dropped.
+
+**Consequences.** Two mechanisms for one problem, which is one more than
+ideal, but they fail in different directions: the driver's is correct in the
+user's language and depends on an NVDA API, and the helper's is always
+available and only English. Silence is the outcome neither of them allows.
+Character-mode text also stopped being trimmed, since the character in
+question may be a space.
+
 ## The symbol names come from NVDA's dictionary, not from intuition
 
 **Context.** Reading by character and spelling a word are exactly where a

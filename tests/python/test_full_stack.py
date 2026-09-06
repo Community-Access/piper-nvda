@@ -336,3 +336,26 @@ def test_cache_can_be_switched_off_and_rebuilt():
         assert session.say("Cache test.") == rebuilt
     finally:
         session.close()
+
+
+def test_a_lone_punctuation_character_is_never_silent():
+    """espeak-ng reads a punctuation character on its own as clause
+    punctuation and returns no phonemes, so the helper has to fall back to
+    the character's name. Silence here is a character the user cannot read."""
+    session = _Session()
+    try:
+        for text in (".", ",", " ", "(", "?", "-", "'"):
+            audio = session.say(text, charMode=True)
+            assert audio, "silent for %r" % text
+        # A character espeak can voice is spoken directly, not renamed.
+        assert session.say("a", charMode=True)
+
+        # A full stop really is spoken as its name: the same length as the
+        # word, not the length of some other sound. Two syntheses are never
+        # byte-identical, so compare duration.
+        as_symbol = session.say(".", charMode=True)
+        as_word = session.say("dot")
+        assert abs(len(as_symbol) - len(as_word)) < len(as_word) * 0.3, (
+            len(as_symbol), len(as_word))
+    finally:
+        session.close()

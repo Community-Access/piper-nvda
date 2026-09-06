@@ -358,6 +358,8 @@ class SynthDriver(SynthDriverBase):
         pending_indexes = []
         pending_break = 0
         cur = None
+        # The language a lone symbol should be named in.
+        symbol_lang = None
 
         def new_segment():
             _speed, stretch = self._rate_to_stretch(rate)
@@ -386,8 +388,16 @@ class SynthDriver(SynthDriverBase):
 
         def close_segment():
             nonlocal cur
-            if cur is not None and (cur["text"].strip() or cur["breakMsBefore"]
-                                    or cur["indexesBefore"]):
+            if cur is None:
+                cur = None
+                return
+            if cur["charMode"]:
+                cur["text"] = _spoken_symbol(cur["text"], symbol_lang)
+            keep = (cur["text"].strip() or cur["breakMsBefore"]
+                    or cur["indexesBefore"]
+                    # A space being read or typed is still something to say.
+                    or (cur["charMode"] and cur["text"]))
+            if keep:
                 segments.append(cur)
             cur = None
 
@@ -419,6 +429,7 @@ class SynthDriver(SynthDriverBase):
                     close_segment()
             elif isinstance(item, LangChangeCommand):
                 close_segment()
+                symbol_lang = item.lang or None
                 if item.lang and auto_lang:
                     cur_model, cur_sid = self._model_for_lang(
                         item.lang, base_model, base_sid)
@@ -686,6 +697,32 @@ class SynthDriver(SynthDriverBase):
             config.conf["speech"][self.name][key] = value
         except Exception:
             pass
+
+
+def _spoken_symbol(text, language=None):
+    """NVDA's own name for a single symbol character.
+
+    NVDA usually replaces a symbol with its name before speech reaches a
+    synthesizer, but not on every path, and espeak-ng produces no phonemes at
+    all for a punctuation character on its own: a full stop, a comma, a
+    bracket, a quote and a space among them. Without a name, reading or
+    typing one of those is silence. Asking NVDA for the name keeps it in the
+    user's language and matches what other synthesizers say.
+
+    Letters, digits, and anything longer than one character are returned
+    unchanged, as is the character itself if NVDA has no name for it.
+    """
+    if len(text) != 1 or text.isalnum():
+        return text
+    try:
+        import characterProcessing
+        import languageHandler
+        locale = language or languageHandler.getLanguage()
+        replacement = characterProcessing.processSpeechSymbol(locale, text)
+    except Exception:
+        log.debugWarning("piper: symbol name lookup failed", exc_info=True)
+        return text
+    return replacement if replacement else text
 
 
 def _advanced_factor(percent):

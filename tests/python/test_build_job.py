@@ -327,3 +327,40 @@ def test_reloading_phrases_picks_up_the_saved_list(wired):
     assert wired._warmup_words == ["Inbox", "stand by"]
     assert wired._helper.payload(proto.LOAD_VOICE)["extraWords"] == [
         "Inbox", "stand by"]
+
+
+def test_lone_symbols_are_given_their_spoken_name(driver):
+    """espeak produces no phonemes at all for a lone full stop, so a
+    character read or typed has to reach the helper as a name."""
+    job = driver._build_job([CharacterModeCommand(True), "."])
+    assert [s["text"] for s in job["segments"]] == ["dot"]
+    assert job["segments"][0]["charMode"] is True
+
+
+def test_a_typed_space_is_still_spoken(driver):
+    job = driver._build_job([CharacterModeCommand(True), " "])
+    assert [s["text"] for s in job["segments"]] == ["space"]
+
+
+def test_letters_and_digits_are_left_alone(driver):
+    for text in ("a", "Z", "7"):
+        job = driver._build_job([CharacterModeCommand(True), text])
+        assert [s["text"] for s in job["segments"]] == [text]
+
+
+def test_symbol_names_follow_the_document_language(driver):
+    job = driver._build_job([LangChangeCommand("fr"), CharacterModeCommand(True), ","])
+    assert [s["text"] for s in job["segments"]] == ["virgule"]
+
+
+def test_ordinary_text_is_never_renamed(driver):
+    # Only single characters in character mode are looked up.
+    job = driver._build_job(["."])
+    assert [s["text"] for s in job["segments"]] == ["."]
+    job = driver._build_job([CharacterModeCommand(True), ".."])
+    assert [s["text"] for s in job["segments"]] == [".."]
+
+
+def test_a_symbol_nvda_cannot_name_is_passed_through(driver):
+    job = driver._build_job([CharacterModeCommand(True), "\u2603"])
+    assert [s["text"] for s in job["segments"]] == ["\u2603"]

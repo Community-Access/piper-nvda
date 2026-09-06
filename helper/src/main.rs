@@ -1,4 +1,5 @@
 mod cache;
+mod charnames;
 mod config;
 mod dsp;
 mod espeak;

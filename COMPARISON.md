@@ -11,7 +11,7 @@ add-on that shares this project's architecture.
 | [Sonata Neural Voices](https://github.com/mush42/sonata-nvda) | Last release v3.1.0, June 2024 | Rust `sonata` engine over gRPC, ONNX Runtime, espeak-ng |
 | [Dengjen Neural Voices](https://github.com/OnjLouis/dengjen-nvda) | Maintained fork of Sonata; documents NVDA 2025.1 through 2026.1 | Same engine, kept building against current NVDA |
 | [rmcpantoja/piper-nvda](https://github.com/rmcpantoja/piper-nvda) | Separate Piper driver | Piper |
-| This add-on | 0.6.0 | Rust helper over stdio, ONNX Runtime, espeak-ng |
+| This add-on | 0.6.1 | Rust helper over stdio, ONNX Runtime, espeak-ng |
 
 Sonata is the original and is no longer released; Dengjen is the version to
 compare against, and is the one this document means whenever it says "the

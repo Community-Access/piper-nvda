@@ -3,6 +3,27 @@
 All notable changes to this add-on are documented here. This project follows
 [Semantic Versioning](https://semver.org): major.minor.patch.
 
+## [0.6.1] - 2026-09-06
+
+### Fixed
+- Characters and symbols were not spoken when arrowed onto or typed.
+  espeak-ng returns no phonemes at all for a punctuation character sent on its
+  own, reading it as clause punctuation and dropping it; twenty characters
+  behave that way, including the full stop, comma, brackets, quotes, and the
+  space. The result was silence for those characters, which is not a slow
+  synthesizer but an unusable one.
+
+  Single characters in character mode are now given their spoken name. The
+  driver asks NVDA for it, so the name is NVDA's own and in the user's
+  language, and the helper keeps an English table behind that so a character
+  that still arrives with no pronunciation is spoken rather than dropped.
+  Character-mode text is also no longer trimmed, since the character being
+  read or typed may be a space.
+
+  Note that the preparation added in 0.6.0 made this faster, not correct:
+  caching does not change what is said. `helper/examples/espeak_charmode.rs`
+  prints exactly which characters espeak drops.
+
 ## [0.6.0] - 2026-09-06
 
 ### Added

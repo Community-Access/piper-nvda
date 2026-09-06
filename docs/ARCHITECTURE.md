@@ -182,6 +182,32 @@ divided by the rate stretch, so they shrink as speech speeds up, and a pause
 is held over and emitted before the *next* chunk so an utterance never ends
 on silence.
 
+## Naming characters and symbols
+
+Sent a punctuation character on its own, espeak-ng reads it as clause
+punctuation and returns no phonemes at all. A full stop, comma, bracket,
+quote, space and fifteen others all phonemize to nothing, so a synthesizer
+that passes them straight through is silent for them, which is unusable when
+reading by character or typing. Letters and digits are fine, and so are the
+symbols espeak has a word for, such as `%` and `@`;
+`helper/examples/espeak_charmode.rs` prints the whole picture.
+
+Two layers handle it:
+
+- The driver asks NVDA for the name. A segment in character mode whose text is
+  a single non-alphanumeric character goes through
+  `characterProcessing.processSpeechSymbol` with the document's language, so
+  the name is NVDA's own and in the user's language. NVDA normally does this
+  substitution itself before speech reaches a synthesizer; doing it here
+  covers the paths where it does not, and is a no-op when it already has.
+- The helper keeps a fallback table (`charnames.rs`). If a chunk still
+  phonemizes to nothing and it is a single character, the helper speaks the
+  character's English name rather than nothing. The names come from NVDA's own
+  `symbols.dic`, so they match what other synthesizers say.
+
+Character-mode text is also not trimmed, since the character being read or
+typed may be a space.
+
 ## The pronunciation lexicon
 
 Piper voices are driven by phonemes, and the phonemes come from espeak-ng,

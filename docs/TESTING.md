@@ -110,6 +110,7 @@ Run through this matrix on each supported configuration:
 | Multi-speaker | A multi-speaker voice changes speaker via Variant |
 | Typing echo | Characters echo with no perceptible delay |
 | Spelling | Reading by character speaks letters correctly |
+| Symbols | Arrowing onto, and typing, each of `.,;:!?'"()[]{}<>-_^`\|~` and a space speaks its name rather than nothing |
 | Say all | Reads a long document, tracks the caret, no stalls |
 | Language switching | With auto language switching on, a mixed-language document uses matching voices |
 | Language voices | An assignment overrides the default choice for that language; "Automatic" restores it |
