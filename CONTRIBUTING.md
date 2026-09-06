@@ -27,15 +27,39 @@ build --release`.
 - Follow NVDA's conventions: `logHandler.log` for logging (never `print`),
   `ui.message` for speech, `wx.CallAfter` for any GUI work from a background
   thread, and always call `nextHandler()` in event handlers.
-- Format with `black` and sort imports with `isort` before committing.
 - Prefer clear names and short, single-purpose modules (the driver is already
   split into `_protocol`, `_helperProc`, `_audio`, `_catalog`, `_voices`,
   `_download`, `_manager_ui`, `_paths`). Keep it that way.
-- Wrap user-facing strings in `_()` for translation, with a translator comment
-  above each, as the existing code does.
+- Wrap user-facing strings in `_()` for translation, with a `# Translators:`
+  comment above each describing its purpose, as the existing code does.
 - Never block NVDA's main thread. Inference is out-of-process; the driver's
   own work (protocol I/O, downloads) runs on background threads and marshals
   results back with `wx.CallAfter` or NVDA's notification system.
+
+### Code style: NV Access standard
+
+NV Access enforces its own style on the NVDA project and the official add-on
+template, and matching it is expected for store add-ons. The authoritative
+references are the NVDA
+[coding standards](https://github.com/nvaccess/nvda/blob/master/projectDocs/dev/codingStandards.md)
+and the add-on template
+[`pyproject.toml`](https://github.com/nvaccess/addonTemplate/blob/master/pyproject.toml):
+
+- **Ruff** is the mandated linter and formatter: line length 110, **tab**
+  indentation (one tab per level), LF line endings, UTF-8. Import sorting is
+  Ruff's `I001`.
+- **Type annotations** on all variables, attributes, and function arguments
+  and returns (except `self`/`cls`); prefer `X | None` over `Optional[X]`.
+- **Pyright** in strict mode.
+- Naming: functions/variables `lowerCamelCase`; classes `UpperCamelCase`;
+  constants `UPPER_SNAKE`; scripts `script_name`; event handlers
+  `event_name`.
+
+Heads-up for this repository: the existing Python was written in the common
+PEP 8 / 4-space style, not NV Access tabs. Before a first store submission,
+run Ruff with the NVDA template's config to reformat to tabs/line-110 and add
+any missing type annotations, and add the add-on template `pyproject.toml` so
+CI enforces it. Do not mix styles within a file.
 
 ## Rust (the helper)
 

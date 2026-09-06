@@ -38,21 +38,46 @@ Follow [TESTING.md](TESTING.md) and complete its pre-release checklist. Then:
 2. Set `minimumNVDAVersion` and `lastTestedNVDAVersion` to valid NVDA API
    versions (year.major.minor). Valid values are listed in
    [nvdaAPIVersions.json](https://github.com/nvaccess/addon-datastore-transform/blob/main/nvdaAPIVersions.json).
-   If `lastTestedNVDAVersion` refers to an NVDA that is still in beta/alpha
-   (marked experimental there), you must submit on the `beta` or `dev`
-   channel, not `stable`.
+   See "Choosing your NVDA versions and channel" below - this is the single
+   most important decision for this add-on.
 3. Add a CHANGELOG entry for the version.
 4. Confirm `summary` and `url` in the manifest are correct: the store
    `displayName` must match the manifest `summary`, and the store `homepage`
    must match the manifest `url`.
 
-## Step 2: build and hash
+## Choosing your NVDA versions and channel
+
+NVDA 2026.1 is the first 64-bit NVDA and is a compatibility-breaking release:
+its `backCompatTo` is 2026.1.0, so an add-on is only offered to a 2026.1+ user
+when its `lastTestedNVDAVersion` is at least 2026.1.0. At the time of writing,
+2026.1 and 2026.2 are still marked `experimental` in nvdaAPIVersions.json.
+
+The store enforces this rule: **if `lastTestedNVDAVersion` refers to an
+experimental (beta/alpha) NVDA, the submission must use the `beta` or `dev`
+channel, not `stable`.** That creates a genuine either/or right now:
+
+- **Stable channel, 2025.x users:** set `lastTestedNVDAVersion = 2025.3.3`
+  (the newest non-experimental version). Works on NVDA 2025.1 through 2025.3.x.
+  It will not be offered to 2026.1 users.
+- **Beta or dev channel, 2026.1+ users:** set
+  `lastTestedNVDAVersion = 2026.1.0` (or 2026.2.0) and submit on `beta`.
+  Required to reach 64-bit NVDA users while those versions are experimental.
+
+Because this add-on's architecture (an always-x64 helper) is designed for the
+64-bit era, the natural path is a `beta`-channel release with
+`lastTestedNVDAVersion = 2026.1.0` now, then moving it to `stable` once 2026.1
+loses its experimental flag (re-check nvdaAPIVersions.json at submission time).
+`minimumNVDAVersion = 2025.1.0` keeps 2025.x users covered on the stable
+release. Keep the manifest and the store metadata in agreement.
+
+## Step 2: build
 
 ```
 python tools/build.py
 ```
 
-Compute the SHA256 of the resulting file (the store requires it):
+The submission form computes the SHA256 for you, so you do not normally paste
+it by hand. To verify the file yourself:
 
 ```
 certutil -hashfile dist\piper-neural-0.1.0.nvda-addon SHA256
@@ -72,8 +97,12 @@ Create a GitHub release (tag it, e.g. `v0.1.0`) and attach the
 
 Open the
 [Add-on registration issue form](https://github.com/nvaccess/addon-datastore/issues/new?template=registerAddon.yml)
-and fill it in. It produces a JSON metadata file (a PR) with these fields
-(they must match your manifest):
+and fill it in. The form itself asks for only a few things: the **download
+URL**, the **source URL**, the **publisher**, the **channel** (stable / beta /
+dev), and the **license name** and **license URL** (defaulting to "GPL v2" and
+the GNU GPL-2.0 URL). From those plus your packaged add-on it generates a JSON
+metadata file (a PR) with the fields below. Every field is cross-checked
+against your manifest, so they must agree:
 
 | Field | Value |
 |-------|-------|
@@ -88,8 +117,8 @@ and fill it in. It produces a JSON metadata file (a PR) with these fields
 | `minNVDAVersion` | `{major, minor, patch}` matching `minimumNVDAVersion` |
 | `lastTestedVersion` | `{major, minor, patch}` matching `lastTestedNVDAVersion` |
 | `URL` | the direct `.nvda-addon` download URL from step 3 |
-| `sha256` | the checksum from step 2 |
-| `sourceURL` / `license` | your repo URL and `GPL v2` |
+| `sha256` | computed automatically by the submission tooling |
+| `sourceURL` / `license` / `licenseURL` | your repo URL, `GPL v2`, and the GPL-2.0 URL |
 
 Version numbers must be unique per `addonId` across channels, and released in
 increasing order (newer versions prompt users to update).
