@@ -41,6 +41,88 @@ SYMBOL_CHARACTERS = (
 )
 
 
+#: Mirrors of the helper's built-in warmup lists (helper/src/server.rs), so
+#: the voice manager can show what is prepared automatically without the
+#: helper running. A unit test compares each mirror against the Rust source,
+#: so they cannot drift.
+BUILTIN_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+BUILTIN_SYMBOLS = (
+    "!", "\"", "#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".",
+    "/", ":", ";", "<", "=", ">", "?", "@", "[", "\\", "]", "^", "_", "`",
+    "{", "|", "}", "~", "–", "—", "‘", "’", "“",
+    "”", "…", "•", "°", "©", "®", "™",
+    "€", "£", "¥", "¢", "§", "¶", "×",
+    "÷", "±", "≠", "≤", "≥", "→", "←",
+    "↑", "↓", "½", "¼", "¾", "«", "»",
+)
+
+BUILTIN_SYMBOL_NAMES = (
+    "bang", "quote", "dollar", "percent", "and", "tick", "left paren",
+    "right paren", "star", "plus", "comma", "dash", "dot", "slash", "colon",
+    "semi", "less", "equals", "greater", "question", "at", "left bracket",
+    "right bracket", "caret", "line", "graav", "left brace", "bar",
+    "right brace", "tilda", "en dash", "em dash", "left tick", "right tick",
+    "left quote", "right quote", "dot dot dot", "bullet", "degrees",
+    "copyright", "registered", "trademark", "euro", "pound", "yen", "cents",
+    "section", "paragraph marker", "times", "divide by", "plus or Minus",
+    "not equal to", "less- than or equal to", "greater-than or equal to",
+    "right arrow", "left arrow", "up arrow", "down arrow", "one half",
+    "one quarter", "three quarters", "double left pointing angle bracket",
+    "double right pointing angle bracket",
+)
+
+BUILTIN_NUMBERS = (
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+    "seventeen", "eighteen", "nineteen", "twenty", "thirty", "forty",
+    "fifty", "sixty", "seventy", "eighty", "ninety", "hundred", "thousand",
+    "million", "billion",
+)
+
+BUILTIN_WORDS = (
+    "button", "checkbox", "check box", "radio button", "menu", "menu item",
+    "menu bar", "list", "list item", "tree view", "tab", "edit", "combo box",
+    "slider", "spin button", "progress bar", "link", "heading", "graphic",
+    "table", "row", "column", "cell", "dialog", "window", "pane", "document",
+    "toolbar", "status bar", "separator", "grouping", "region", "banner",
+    "navigation", "article", "section", "form", "text", "password", "search",
+    "toggle button", "split button", "scroll bar", "header", "footer",
+    "selected", "not selected", "checked", "not checked", "half checked",
+    "pressed", "not pressed", "expanded", "collapsed", "unavailable",
+    "read only", "required", "invalid entry", "busy", "clickable", "editable",
+    "multi line", "has pop up", "current", "modal", "on", "off",
+    "blank", "empty", "space", "tab", "enter", "delete", "back space",
+    "capital", "cap", "yes", "no", "okay", "cancel", "close", "open", "more",
+    "less", "of", "level", "with", "contains", "out of", "new line", "line",
+    "warning", "error", "alert",
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+    "nine", "ten",
+    "dot", "comma", "star", "dash", "slash", "colon", "semicolon", "quote",
+    "left paren", "right paren", "percent", "dollar", "at", "number",
+    "ampersand", "plus", "minus", "equals", "greater", "less than",
+)
+
+
+def builtin_items(language=None):
+    """Everything prepared without being asked, in the order it is prepared.
+
+    Mirrors the helper's `warmup_items` (helper/src/server.rs): the user's
+    own phrases come first and are listed elsewhere; then the characters,
+    the symbols, the symbol names, the numbers, and the common words. When
+    NVDA can be asked, the driver sends its symbol names in the user's
+    language ahead of the built-ins and the helper skips its English list,
+    so the view does the same.
+    """
+    names = symbol_words(language)
+    if names:
+        return (names + list(BUILTIN_CHARS) + list(BUILTIN_SYMBOLS)
+                + list(BUILTIN_NUMBERS) + list(BUILTIN_WORDS))
+    return (list(BUILTIN_CHARS) + list(BUILTIN_SYMBOLS)
+            + list(BUILTIN_SYMBOL_NAMES) + list(BUILTIN_NUMBERS)
+            + list(BUILTIN_WORDS))
+
+
 def path():
     return os.path.join(_paths.data_dir(), "warmup.json")
 

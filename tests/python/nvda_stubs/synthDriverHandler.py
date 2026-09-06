@@ -68,3 +68,8 @@ class SynthDriver:
     @classmethod
     def VolumeSetting(cls):
         return NumericDriverSetting("volume", "Volume", availableInSettingsRing=True)
+
+    @classmethod
+    def _getConfigSpecForSettings(cls, settings):
+        # Mirrors NVDA's AutoSettings._getConfigSpecForSettings.
+        return {s.id: s.configSpec for s in settings if s.useConfig}

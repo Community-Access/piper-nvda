@@ -152,7 +152,9 @@ your tools repeat all day.
 
 In the voice manager, press "Prepared audio" to add your own. Press "Add",
 type a word or short phrase, and press Save. Your phrases are prepared before
-the built-in list, so they are ready first.
+the built-in list, so they are ready first. Press "Built-in items" to browse
+what is prepared automatically, in the order it is prepared, before adding
+something it already covers.
 
 A phrase can be up to 40 characters. Beyond that, Piper splits an utterance up
 to start speaking sooner, so a longer phrase would never be looked up as a

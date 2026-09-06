@@ -163,15 +163,12 @@ this repository generates is the file to upload.
 Known gaps at 1.0.0, none of which block a GitHub release but all of which are
 worth closing before asking users to depend on the add-on:
 
-- **The dialogs have grown.** There are now eight, and the accessibility
+- **The dialogs have grown.** There are now nine, and the accessibility
   table in [TESTING.md](TESTING.md) covers all of them.
 - **No completed translations.** The pipeline, the template, and the
   documentation for translators exist; no language has been translated yet.
   English-only is acceptable for the store, but a screen reader add-on gets
   much wider use with translations.
-- **The dialogs have not had a manual accessibility pass.** The five dialogs
-  are import-tested only. Run the accessibility table in
-  [TESTING.md](TESTING.md) inside NVDA first.
 - **The manual NVDA matrix has not been run on both NVDA generations.** The
   32-bit/64-bit claim rests on the helper being out-of-process, which is
   sound, but it has not been exercised end to end on a 2025.x and a 2026.x

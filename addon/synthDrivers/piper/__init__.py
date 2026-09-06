@@ -171,6 +171,38 @@ class SynthDriver(SynthDriverBase):
             return self._base_settings() + self._advanced_settings()
         return self._base_settings() + self._simple_settings()
 
+    def getConfigSpec(self):
+        """The config spec for every setting either mode can expose, not only
+        the ones currently shown, so each key always has a default in NVDA's
+        config even while the other mode hides it."""
+        return self._getConfigSpecForSettings(
+            self._base_settings() + self._simple_settings()
+            + self._advanced_settings())
+
+    def _register_config_spec(self):
+        """Give NVDA's config the spec for this driver's settings before
+        anything reads them.
+
+        NVDA installs a driver's config spec in initSettings, which runs
+        after __init__. Reading a key that is not in the ini yet while the
+        section has no spec makes NVDA's config cache a KeyError for it
+        permanently (config.AggregatedSection.__getitem__), which
+        loadSettings then raises and the whole driver fails to load:
+        "setSynth failed for piper ... KeyError: 'sentencePause'", on the
+        first launch after a setting was added to an existing section. With
+        the spec registered first, a missing key reads as its default.
+        """
+        try:
+            section = config.conf["speech"][self.name]
+        except KeyError:
+            # First ever run: no section yet. initSettings creates it
+            # before anything reads from it, so there is nothing to poison.
+            return
+        try:
+            section.spec.update(self.getConfigSpec())
+        except Exception:
+            log.exception("piper: could not register the config spec early")
+
     supportedCommands = frozenset({
         IndexCommand,
         CharacterModeCommand,
@@ -189,6 +221,7 @@ class SynthDriver(SynthDriverBase):
 
     def __init__(self):
         super().__init__()
+        self._register_config_spec()
         self._rate = 50
         self._pitch = 50
         self._volume = 90

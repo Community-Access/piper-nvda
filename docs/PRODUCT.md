@@ -102,12 +102,10 @@ In rough order of value:
 1. **Translations.** The pipeline and template exist and no language has been
    done. A screen reader add-on with no translations reaches a fraction of
    its potential users.
-2. **A manual accessibility pass** over the eight dialogs, inside NVDA, by
-   someone using a screen reader.
-3. **Add-on Store submission.** This should come before translations rather
+2. **Add-on Store submission.** This should come before translations rather
    than after: translators arrive from the pool of users, and there are none
    yet.
-4. **Signing the helper binary.** Lower than it first appeared: NVDA add-ons
+3. **Signing the helper binary.** Lower than it first appeared: NVDA add-ons
    are unsigned as a rule, the helper is launched by NVDA rather than from
    Explorer, and the store's own VirusTotal step is the real gate on native
    binaries. Worth revisiting only if someone reports a SmartScreen problem.

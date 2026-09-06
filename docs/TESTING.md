@@ -150,8 +150,8 @@ auditing by ear should not have to spend attention on.
 What it cannot judge is whether an announcement is *useful*, which is the rest
 of the job. Automated tests otherwise only prove the dialogs import. Every dialog
 (voice manager, Import voices, Pronunciations, Pronunciation entry, Language
-voices, Prepared audio, Download several, Back up or restore) needs a
-keyboard-only pass before release:
+voices, Prepared audio, Built-in prepared items, Download several, Back up or
+restore) needs a keyboard-only pass before release:
 
 | Check | Expectation |
 |-------|-------------|
@@ -177,7 +177,9 @@ if available, a second machine with a slower CPU to sanity-check latency.
 - [ ] `python tools/build.py` produces the `.nvda-addon` with no
       `__pycache__`/`.pyc` and with the helper and espeak payload present.
 - [ ] Manual matrix passed on 32-bit and 64-bit NVDA.
-- [ ] Accessibility pass completed on all five dialogs.
+- [x] Accessibility pass completed on all eight dialogs (2026-09-06). The
+      Built-in prepared items dialog was added after that pass and still
+      needs one.
 - [ ] `python tools/pe_imports.py addon/synthDrivers/piper/bin/piper-helper.exe`
       lists nothing beyond `api-ms-win-*` apisets, core Windows DLLs, and
       files the package ships. Anything else is a dependency users would have

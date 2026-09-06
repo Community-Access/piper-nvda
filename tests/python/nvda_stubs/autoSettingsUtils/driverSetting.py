@@ -10,6 +10,11 @@ class DriverSetting:
         self.defaultVal = defaultVal
         self.useConfig = kwargs.get("useConfig", True)
 
+    @property
+    def configSpec(self):
+        # Mirrors NVDA's DriverSetting.configSpec.
+        return "string(default={})".format(self.defaultVal)
+
 
 class NumericDriverSetting(DriverSetting):
     def __init__(self, id, displayName, availableInSettingsRing=False,
@@ -22,9 +27,18 @@ class NumericDriverSetting(DriverSetting):
         self.normalStep = normalStep
         self.largeStep = largeStep
 
+    @property
+    def configSpec(self):
+        return "integer(default={},min={},max={})".format(
+            self.defaultVal, self.minVal, self.maxVal)
+
 
 class BooleanDriverSetting(DriverSetting):
     def __init__(self, id, displayName, availableInSettingsRing=False,
                  defaultVal=False, **kwargs):
         super().__init__(id, displayName, availableInSettingsRing, defaultVal,
                          **kwargs)
+
+    @property
+    def configSpec(self):
+        return "boolean(default={})".format(self.defaultVal)

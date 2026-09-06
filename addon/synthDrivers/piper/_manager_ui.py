@@ -47,6 +47,22 @@ def _announce(message):
             pass
 
 
+def _set_list(listbox, labels):
+    """Fill a list box, giving an empty one a single placeholder row.
+
+    A focused wx.ListBox with no rows is announced by NVDA as "unknown"; a
+    placeholder row reads as what it is. Callers already treat a selection
+    index at or beyond their own row count as no selection, so the
+    placeholder enables no buttons.
+    """
+    if labels:
+        listbox.Set(labels)
+    else:
+        # Translators: the only row of a list that has nothing in it.
+        listbox.Set([_("No entries")])
+        listbox.SetSelection(0)
+
+
 def _recommended_voice():
     """The voice to offer on a first run, for NVDA's own language."""
     try:
@@ -406,7 +422,7 @@ class VoiceBrowserDialog(wx.Dialog):
             size = (" - %d MB" % round(v.model_size / _MB)
                     if v.model_size else "")
             labels.append(v.display_name + size + status + favorite)
-        self._list.Set(labels)
+        _set_list(self._list, labels)
         if labels:
             self._list.SetSelection(0)
         self._update_buttons()
@@ -802,8 +818,9 @@ class LexiconDialog(wx.Dialog):
     def _refresh(self, select_word=None):
         self._words = sorted(self._entries)
         # Translators: one pronunciation entry: {word} spoken as {ipa}.
-        self._list.Set([_("{word}: {ipa}").format(word=w, ipa=self._entries[w])
-                        for w in self._words])
+        _set_list(self._list, [
+            _("{word}: {ipa}").format(word=w, ipa=self._entries[w])
+            for w in self._words])
         if self._words:
             index = 0
             if select_word in self._words:
@@ -812,7 +829,7 @@ class LexiconDialog(wx.Dialog):
         self._update_buttons()
 
     def _update_buttons(self):
-        has = self._list.GetSelection() != wx.NOT_FOUND
+        has = self._selected_word() is not None
         self._editBtn.Enable(has)
         self._removeBtn.Enable(has)
         self._previewBtn.Enable(has and self._preview_model is not None)
@@ -960,7 +977,7 @@ class LanguageVoicesDialog(wx.Dialog):
 
     def _refresh(self, index=0):
         # Translators: one row of the language list: {language} uses {voice}.
-        self._list.Set([_("{language}: {voice}").format(
+        _set_list(self._list, [_("{language}: {voice}").format(
             language=lang, voice=self._voice_label(lang))
             for lang in self._languages])
         if self._languages:
@@ -968,7 +985,7 @@ class LanguageVoicesDialog(wx.Dialog):
 
     def _on_change(self, evt):
         index = self._list.GetSelection()
-        if index == wx.NOT_FOUND:
+        if index == wx.NOT_FOUND or index >= len(self._languages):
             return
         language = self._languages[index]
         # Translators: the option that restores automatic voice selection.
@@ -1029,9 +1046,11 @@ class PreparedAudioDialog(wx.Dialog):
         main = wx.BoxSizer(wx.VERTICAL)
         # Translators: explains what preparing audio does.
         main.Add(wx.StaticText(self, label=_(
-            "Piper prepares the alphabet and the words NVDA says most often "
-            "while it is idle, so they speak with no delay. Add words and "
-            "short phrases of your own here to have them prepared too.")),
+            "Piper always prepares the alphabet, the digits, punctuation "
+            "and symbol names, and the words NVDA says most often while it "
+            "is idle, so they speak with no delay; press Built-in items to "
+            "see them. Add words and short phrases of your own to have "
+            "them prepared too.")),
             border=5, flag=wx.ALL)
         # Translators: label for the list of phrases the user added.
         main.Add(wx.StaticText(self, label=_("Your &words and phrases:")),
@@ -1050,7 +1069,10 @@ class PreparedAudioDialog(wx.Dialog):
         # Translators: delete the selected phrase.
         self._removeBtn = wx.Button(self, label=_("&Remove"))
         self._removeBtn.Bind(wx.EVT_BUTTON, self._on_remove)
-        for b in (addBtn, self._editBtn, self._removeBtn):
+        # Translators: opens the read-only list of built-in prepared items.
+        builtinBtn = wx.Button(self, label=_("Built-&in items..."))
+        builtinBtn.Bind(wx.EVT_BUTTON, self._on_builtins)
+        for b in (addBtn, self._editBtn, self._removeBtn, builtinBtn):
             btns.Add(b, border=4, flag=wx.ALL)
         main.Add(btns, flag=wx.ALIGN_CENTER)
 
@@ -1081,14 +1103,14 @@ class PreparedAudioDialog(wx.Dialog):
             size="%.1f" % megabytes)
 
     def _refresh(self, select=None):
-        self._list.Set(self._words)
+        _set_list(self._list, self._words)
         if self._words:
             index = self._words.index(select) if select in self._words else 0
             self._list.SetSelection(index)
         self._update_buttons()
 
     def _update_buttons(self):
-        has = self._list.GetSelection() != wx.NOT_FOUND
+        has = self._selected() is not None
         self._editBtn.Enable(has)
         self._removeBtn.Enable(has)
 
@@ -1151,6 +1173,11 @@ class PreparedAudioDialog(wx.Dialog):
         _announce(_("Removed {word}").format(word=current))
         self._refresh()
 
+    def _on_builtins(self, evt):
+        dlg = BuiltinPreparedDialog(self)
+        dlg.ShowModal()
+        dlg.Destroy()
+
     def _on_rebuild(self, evt):
         """Throw the prepared audio away and start again.
 
@@ -1177,6 +1204,45 @@ class PreparedAudioDialog(wx.Dialog):
                 _("Piper Neural Voices"), wx.OK | wx.ICON_ERROR, self)
             return
         self.EndModal(wx.ID_OK)
+
+
+class BuiltinPreparedDialog(wx.Dialog):
+    """Read-only view of what the helper prepares without being asked.
+
+    The editable list next door holds only the user's own phrases; showing
+    the few hundred built-ins there would bury them and imply they can be
+    edited. Here they can be arrowed through and heard, which answers "is
+    this one already covered?" before adding it by hand.
+    """
+
+    def __init__(self, parent):
+        # Translators: title of the read-only list of built-in prepared items.
+        super().__init__(parent, title=_("Built-in prepared items"),
+                         style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        items = _warmup.builtin_items()
+        main = wx.BoxSizer(wx.VERTICAL)
+        # Translators: explains the read-only list of built-in items.
+        main.Add(wx.StaticText(self, label=_(
+            "Piper prepares these for every voice on its own, in this "
+            "order, after anything you added yourself. The symbol names "
+            "come from NVDA in your language. This list is read only.")),
+            border=5, flag=wx.ALL)
+        # Translators: label for the read-only list; {count} is how many.
+        main.Add(wx.StaticText(self, label=_(
+            "Prepared &items ({count}):").format(count=len(items))),
+            border=5, flag=wx.LEFT | wx.TOP)
+        self._list = wx.ListBox(self, style=wx.LB_SINGLE, size=(520, 300))
+        _set_list(self._list, items)
+        if items:
+            self._list.SetSelection(0)
+        main.Add(self._list, proportion=1, border=5, flag=wx.ALL | wx.EXPAND)
+        closeRow = wx.BoxSizer(wx.HORIZONTAL)
+        # Translators: closes the read-only list.
+        closeRow.Add(wx.Button(self, wx.ID_CANCEL, label=_("&Close")),
+                     border=4, flag=wx.ALL)
+        main.Add(closeRow, flag=wx.ALIGN_CENTER)
+        self.SetSizerAndFit(main)
+        self._list.SetFocus()
 
 
 class DownloadSeveralDialog(wx.Dialog):

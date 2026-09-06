@@ -8,6 +8,11 @@ All notable changes to this add-on are documented here. This project follows
 The release that makes the add-on configurable rather than merely capable.
 
 ### Added
+- **A "Built-in items" view in Prepared audio**: a read-only list of
+  everything Piper prepares on its own for every voice - the alphabet, the
+  digits, the symbols and their names in your language, the numbers, and
+  the words NVDA says most often - in the order it is prepared, so you can
+  check whether something is already covered before adding it yourself.
 - **Three commands in NVDA's Input Gestures**, under "Piper Neural Voices":
   open the voice manager, move to the next favourite voice, and turn
   background preparation on or off. All unassigned, so nothing clashes with a
@@ -41,6 +46,18 @@ The release that makes the add-on configurable rather than merely capable.
   for when NVDA cannot be asked.
 
 ### Fixed
+- The driver failed to load ("setSynth failed for piper ... KeyError:
+  'sentencePause'") on the first launch after a new setting was added to an
+  existing configuration. NVDA installs a driver's config spec only after
+  the driver is constructed, and reading a not-yet-saved setting before
+  that permanently caches a KeyError for it in NVDA's config, which then
+  fails the load. The driver now registers the spec for every setting,
+  including the advanced ones while hidden, before anything reads the
+  section.
+- An empty list was announced as "unknown". The lists that can be empty
+  (voice browser under a search with no matches, Pronunciations, Language
+  voices, Prepared audio) now show a single "No entries" row instead, and
+  the buttons that act on a selection stay disabled on it.
 - Five controls in the voice manager shared an accelerator with another
   control, so Alt plus that letter could not reach them, and the backup dialog
   never put focus anywhere. Found by a new test that reads the dialog source

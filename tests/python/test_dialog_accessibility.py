@@ -142,6 +142,7 @@ def test_every_dialog_was_found():
         "PronunciationEntryDialog",
         "LanguageVoicesDialog",
         "PreparedAudioDialog",
+        "BuiltinPreparedDialog",
         "DownloadSeveralDialog",
         "SettingsFilesDialog",
     }
