@@ -13,8 +13,9 @@ before downloading it.
 ## System requirements
 
 - NVDA 2025.1 or later (including 64-bit NVDA 2026.1 and later).
-- Windows 10 (64-bit) or Windows 11. Windows 8.1 will not work: the speech
-  engine is built against components that Windows 10 introduced.
+- Windows 11 or later, 64-bit. Windows 10 and earlier are not supported: the
+  add-on may well run on Windows 10, but it is not tested there and problems
+  that only appear there will not be fixed.
 - Nothing else. The add-on brings the Visual C++ runtime it needs with it, so
   there is no separate redistributable to install.
 - About 60 to 120 MB of disk per voice you download. The add-on itself is
@@ -77,6 +78,10 @@ change a value).
   semicolons, and colons get a shorter pause automatically. Pauses shorten
   with the rate, so fast speech does not become mostly silence. Set it to 0
   for the tightest possible delivery.
+- **Prepare audio in the background for instant echo**: on by default. Piper
+  prepares the alphabet and the words NVDA says most often while it is idle,
+  and remembers what it has already said, so those speak with no delay at
+  all. Turn it off to save disk and memory at the cost of that instant echo.
 - **Show advanced voice parameters**: replaces Expressiveness with the three
   parameters the voice model actually uses. See below.
 
@@ -120,6 +125,26 @@ In the voice manager, press "Language voices", choose a language, and press
 voice for that language. An assignment for a language without a region (for
 example Portuguese) also covers its regional variants (Brazilian Portuguese)
 unless you assign those separately.
+
+## Preparing your own words
+
+The words Piper prepares in advance are the ones every NVDA user hears:
+control types, states, punctuation names, the alphabet. What it cannot know is
+your vocabulary: the app you live in, a colleague's name, a status message
+your tools repeat all day.
+
+In the voice manager, press "Prepared audio" to add your own. Press "Add",
+type a word or short phrase, and press Save. Your phrases are prepared before
+the built-in list, so they are ready first.
+
+A phrase can be up to 40 characters. Beyond that, Piper splits an utterance up
+to start speaking sooner, so a longer phrase would never be looked up as a
+whole and preparing it would not make anything faster.
+
+The same dialog shows how much space the prepared audio is using and has a
+"Rebuild prepared audio" button, which throws it all away and prepares it
+again. That is worth doing if a voice ever sounds wrong in a way that
+re-selecting it does not fix, or simply to reclaim the space.
 
 ## Fixing how a word is pronounced
 
@@ -181,6 +206,7 @@ add-on never deletes it:
 - `cache\` - the prepared audio that makes echo instant.
 - `voices.json` - the catalog of downloadable voices.
 - `lexicon.json` - your pronunciation entries.
+- `warmup.json` - the phrases you asked to have prepared.
 - `language_voices.json` - your per-language voice assignments.
 
 ## Troubleshooting

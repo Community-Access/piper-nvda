@@ -115,6 +115,8 @@ Run through this matrix on each supported configuration:
 | Expressiveness | Changing it audibly changes delivery, and echo stays instant once re-warmed |
 | Advanced parameters | Toggling "Show advanced voice parameters" swaps Expressiveness for the three raw parameters (reopening Speech settings if needed); each changes the voice; length scale above 50 slows the model |
 | Sentence pause | Raising it lengthens the gaps at full stops and, less, at commas; 0 removes them; gaps shrink as the rate rises |
+| Prepared audio | Adding a phrase makes it echo instantly once preparation catches up; the dialog reports a plausible size; Rebuild empties and refills it |
+| Cache off | Turning preparation off leaves speech working, echo becomes as slow as new text, and turning it back on restores instant echo |
 | Unsupported voice | Downloading zh_CN-xiao_ya-medium, he_IL-saspeech-medium, ja_JA-hi_fi_captain-medium, th_TH-tsync2-medium, or uk_UA-ukrainian_tts-medium explains why it cannot be used and does not download the model |
 | 16 kHz voice | A low-quality voice (for example en_GB-alan-low) sounds clean rather than harsh |
 | Rate boost | Very fast speech is intelligible |
@@ -139,7 +141,7 @@ voices) needs a keyboard-only pass before release:
 | Screen reader output | Announcements are useful heard aloud, not just technically present |
 
 Configurations to cover: NVDA 2025.1 (32-bit) and the latest 2026.x (64-bit);
-Windows 10 and 11; at least one low-quality and one medium-quality voice; and,
+Windows 11; at least one low-quality and one medium-quality voice; and,
 if available, a second machine with a slower CPU to sanity-check latency.
 
 ## Pre-release verification checklist

@@ -32,6 +32,12 @@ def cache_dir():
     return os.path.join(data_dir(), "cache")
 
 
+def cache_file():
+    """The helper's prepared-audio file. Named here so the voice manager can
+    report its size and remove it when no helper is running."""
+    return os.path.join(cache_dir(), "piper-audio.kcache")
+
+
 def catalog_path():
     return os.path.join(data_dir(), "voices.json")
 

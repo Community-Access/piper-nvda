@@ -3,6 +3,27 @@
 All notable changes to this add-on are documented here. This project follows
 [Semantic Versioning](https://semver.org): major.minor.patch.
 
+## [0.5.0] - 2026-09-06
+
+### Added
+- "Prepared audio" in the voice manager. Piper already prepares the alphabet
+  and the words NVDA says most often while it is idle, so they speak with no
+  delay; this adds words and short phrases of your own to that list, queued
+  ahead of the built-in ones. It also reports how much space the prepared
+  audio uses and can rebuild it from scratch. Phrases are limited to 40
+  characters, because beyond that an utterance is split before it is spoken
+  and the prepared audio would never be looked up.
+- A "Prepare audio in the background" setting, for turning preparation and
+  reuse off entirely.
+
+### Changed
+- Supported Windows is now Windows 11 and later. The add-on still runs on
+  Windows 10, and nothing blocks installing it there, but it is not tested on
+  it. The driver logs a warning naming the Windows build when it starts on
+  anything older, so a report from an unsupported machine explains itself.
+- The protocol gained SET_CACHE and CLEAR_CACHE, and LOAD_VOICE carries the
+  user's phrases.
+
 ## [0.4.1] - 2026-09-06
 
 ### Fixed

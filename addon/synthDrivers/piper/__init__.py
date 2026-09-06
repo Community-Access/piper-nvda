@@ -7,6 +7,7 @@ playback-accurate index/done notifications.
 """
 
 import os
+import sys
 import threading
 from collections import OrderedDict
 
@@ -45,6 +46,7 @@ from . import (
     _paths,
     _protocol as proto,
     _voices,
+    _warmup,
 )
 
 SAMPLE_RATE = 22050
@@ -91,6 +93,12 @@ class SynthDriver(SynthDriverBase):
                 availableInSettingsRing=True,
                 defaultVal=25,
                 minStep=5,
+            ),
+            BooleanDriverSetting(
+                "useCache",
+                # Translators: toggles background preparation of audio.
+                _("Prepare audio in the &background for instant echo"),
+                defaultVal=True,
             ),
             BooleanDriverSetting(
                 "advancedMode",
@@ -178,6 +186,8 @@ class SynthDriver(SynthDriverBase):
         self._variant = "0"
         self._variance = _clamp_percent(self._load_conf("variance", 50))
         self._sentencePause = _clamp_percent(self._load_conf("sentencePause", 25))
+        self._useCache = bool(self._load_conf("useCache", True))
+        self._warmup_words = _warmup.load()
         self._advancedMode = bool(self._load_conf("advancedMode", False))
         self._noiseScale = _clamp_percent(self._load_conf("noiseScale", 50))
         self._noiseW = _clamp_percent(self._load_conf("noiseW", 50))
@@ -201,6 +211,7 @@ class SynthDriver(SynthDriverBase):
             else:
                 raise RuntimeError("No Piper voices installed")
 
+        _warn_if_unsupported_windows()
         self._player = _create_player()
         self._pump = _audio.AudioPump(self._player, self._on_index, self._on_done)
         self._helper = _helperProc.HelperProcess(
@@ -208,6 +219,7 @@ class SynthDriver(SynthDriverBase):
             on_frame=self._on_frame, on_restart=self._on_helper_restart)
         self._helper.start()
         self._send_lexicon()
+        self._send_cache_state()
         self._request_warmup()
 
     def _helper_args(self):
@@ -232,6 +244,7 @@ class SynthDriver(SynthDriverBase):
                 self._helper.send(proto.LOAD_VOICE, {
                     "voice": model,
                     "scales": self._scales(),
+                    "extraWords": self._warmup_words,
                 })
             except Exception:
                 pass
@@ -244,9 +257,31 @@ class SynthDriver(SynthDriverBase):
         except Exception:
             log.exception("piper: could not send the pronunciation lexicon")
 
+    def _send_cache_state(self):
+        """Tell the helper whether to prepare and reuse audio."""
+        try:
+            self._helper.send(proto.SET_CACHE, {"enabled": self._useCache})
+        except Exception:
+            log.exception("piper: could not set the cache state")
+
     def reload_lexicon(self):
         """Called by the voice manager after the user edits pronunciations."""
         self._send_lexicon()
+
+    def reload_warmup_words(self):
+        """Called by the voice manager after the prepared phrases change."""
+        self._warmup_words = _warmup.load()
+        self._request_warmup()
+
+    def rebuild_cache(self):
+        """Throw the prepared audio away and prepare it again."""
+        try:
+            self._helper.send(proto.CLEAR_CACHE, {})
+        except Exception:
+            log.exception("piper: could not clear the prepared audio")
+            return
+        if self._useCache:
+            self._request_warmup()
 
     def reload_language_voices(self):
         """Called by the voice manager after language assignments change."""
@@ -284,6 +319,7 @@ class SynthDriver(SynthDriverBase):
 
     def _on_helper_restart(self):
         self._send_lexicon()
+        self._send_cache_state()
         self._request_warmup()
 
     def _on_index(self, index):
@@ -609,6 +645,21 @@ class SynthDriver(SynthDriverBase):
             self._sentencePause = value
             self._save_conf("sentencePause", value)
 
+    def _get_useCache(self):
+        return self._useCache
+
+    def _set_useCache(self, value):
+        value = bool(value)
+        if value == self._useCache:
+            return
+        self._useCache = value
+        self._save_conf("useCache", value)
+        self._send_cache_state()
+        # Turning it back on leaves the cache cold until the common words are
+        # prepared again.
+        if value:
+            self._request_warmup()
+
     def _get_advancedMode(self):
         return self._advancedMode
 
@@ -680,6 +731,28 @@ def _announce_settings_change():
             _("Reopen Speech settings to see the changed parameters"))
     except Exception:
         pass
+
+
+#: Windows 11 is 10.0 with build 22000 or later.
+_MIN_WINDOWS_BUILD = 22000
+
+
+def _warn_if_unsupported_windows():
+    """Note an unsupported Windows in the log.
+
+    The add-on is only supported on Windows 11 and later. Older Windows is not
+    blocked, because it does work, but a report from one should say so without
+    the user having to know.
+    """
+    try:
+        version = sys.getwindowsversion()
+    except AttributeError:  # pragma: no cover - not Windows
+        return
+    if version.build < _MIN_WINDOWS_BUILD:
+        log.warning(
+            "piper: Windows build %d is older than Windows 11, which is the "
+            "supported minimum; this configuration is untested"
+            % version.build)
 
 
 def _clamp_percent(value):

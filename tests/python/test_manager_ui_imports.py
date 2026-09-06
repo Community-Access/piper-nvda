@@ -20,6 +20,7 @@ def manager():
     "LexiconDialog",
     "PronunciationEntryDialog",
     "LanguageVoicesDialog",
+    "PreparedAudioDialog",
     "DemoPlayer",
     "open_manager",
     "prompt_first_run",
@@ -29,8 +30,9 @@ def test_manager_exposes(manager, name):
 
 
 def test_notify_synth_is_quiet_when_piper_is_not_running(manager):
-    # No synthesizer is active under the stubs; this must not raise.
-    manager._notify_synth("reload_lexicon")
+    # No synthesizer is active under the stubs; this must not raise, and it
+    # reports that it reached nothing so callers can fall back.
+    assert manager._notify_synth("reload_lexicon") is False
 
 
 def test_notify_synth_calls_the_driver(manager, monkeypatch):
@@ -45,7 +47,7 @@ def test_notify_synth_calls_the_driver(manager, monkeypatch):
     import synthDriverHandler
     monkeypatch.setattr(synthDriverHandler, "getSynth", lambda: FakeSynth(),
                         raising=False)
-    manager._notify_synth("reload_lexicon")
+    assert manager._notify_synth("reload_lexicon") is True
     assert calls == ["reload_lexicon"]
 
 
@@ -59,4 +61,4 @@ def test_notify_synth_ignores_other_synthesizers(manager, monkeypatch):
     import synthDriverHandler
     monkeypatch.setattr(synthDriverHandler, "getSynth", lambda: Other(),
                         raising=False)
-    manager._notify_synth("reload_lexicon")
+    assert manager._notify_synth("reload_lexicon") is False

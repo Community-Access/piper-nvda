@@ -66,6 +66,8 @@ struct Work {
     /// Pending lexicon replacement. Kept out of `jobs` so a cancel cannot
     /// drop it.
     lexicon: Option<p::SetLexicon>,
+    /// Set when the user has asked for the prepared audio to be rebuilt.
+    clear_cache: bool,
 }
 
 struct WarmupItem {
@@ -80,6 +82,9 @@ struct Shared {
     cv: Condvar,
     generation: AtomicU64,
     running: AtomicBool,
+    /// Whether to prepare and reuse audio. Read from both threads, so it is
+    /// an atomic rather than a field of the work queue.
+    cache_enabled: AtomicBool,
     out: Mutex<Box<dyn Write + Send>>,
 }
 
@@ -110,6 +115,7 @@ pub fn run(paths: &Paths) -> Result<()> {
         cv: Condvar::new(),
         generation: AtomicU64::new(0),
         running: AtomicBool::new(true),
+        cache_enabled: AtomicBool::new(true),
         out: Mutex::new(stdout),
     });
 
@@ -158,8 +164,25 @@ pub fn run(paths: &Paths) -> Result<()> {
             msg_type::PING => shared.send(msg_type::PONG, &serde_json::json!({})),
             msg_type::LOAD_VOICE => {
                 if let Ok(lv) = serde_json::from_slice::<p::LoadVoice>(&payload) {
-                    enqueue_warmup(&shared, &lv.voice, lv.scales);
+                    if shared.cache_enabled.load(Ordering::SeqCst) {
+                        enqueue_warmup(&shared, &lv.voice, lv.scales, &lv.extra_words);
+                    }
                 }
+            }
+            msg_type::SET_CACHE => match serde_json::from_slice::<p::SetCache>(&payload) {
+                Ok(sc) => {
+                    shared.cache_enabled.store(sc.enabled, Ordering::SeqCst);
+                    if !sc.enabled {
+                        // Stop preparing immediately; anything already queued
+                        // would only fill a cache nobody is going to read.
+                        shared.work.lock().unwrap().warmup.clear();
+                    }
+                }
+                Err(e) => shared.error("badSetCache", e.to_string()),
+            },
+            msg_type::CLEAR_CACHE => {
+                shared.work.lock().unwrap().clear_cache = true;
+                shared.cv.notify_one();
             }
             msg_type::SET_LEXICON => match serde_json::from_slice::<p::SetLexicon>(&payload) {
                 Ok(sl) => {
@@ -183,6 +206,7 @@ enum Task {
     Job(u64, Job),
     Warmup(WarmupItem),
     Lexicon(p::SetLexicon),
+    ClearCache,
     Shutdown,
 }
 
@@ -196,6 +220,9 @@ fn next_task(shared: &Shared) -> Task {
         // just made is audible on the next utterance.
         if let Some(sl) = work.lexicon.take() {
             return Task::Lexicon(sl);
+        }
+        if std::mem::take(&mut work.clear_cache) {
+            return Task::ClearCache;
         }
         if let Some((g, job)) = work.jobs.pop_front() {
             return Task::Job(g, job);
@@ -226,10 +253,17 @@ fn worker_loop(
             Task::Lexicon(sl) => {
                 lex.set(sl.rev, sl.entries);
             }
+            Task::ClearCache => {
+                cache.clear();
+            }
             Task::Warmup(item) => {
-                warm_one(&mut engine, &mut phonemizer, &mut cache, &lex, &item);
-                if shared.work.lock().unwrap().warmup.is_empty() {
-                    cache.save();
+                // Switching the cache off clears the queue, so this only
+                // catches an item already taken off it.
+                if shared.cache_enabled.load(Ordering::SeqCst) {
+                    warm_one(&mut engine, &mut phonemizer, &mut cache, &lex, &item);
+                    if shared.work.lock().unwrap().warmup.is_empty() {
+                        cache.save();
+                    }
                 }
             }
             Task::Shutdown => {
@@ -240,7 +274,12 @@ fn worker_loop(
     }
 }
 
-fn enqueue_warmup(shared: &Shared, model_path: &str, scales: p::Scales) {
+fn enqueue_warmup(
+    shared: &Shared,
+    model_path: &str,
+    scales: p::Scales,
+    extra_words: &[String],
+) {
     let mut work = shared.work.lock().unwrap();
     // Re-warming for a new voice or variance makes queued items pointless.
     work.warmup.clear();
@@ -252,10 +291,16 @@ fn enqueue_warmup(shared: &Shared, model_path: &str, scales: p::Scales) {
             scales,
         });
     }
-    for word in WARMUP_WORDS {
+    // The user's own phrases go first among the words: they asked for these,
+    // and preparation is idle-time work that a burst of speech interrupts.
+    let words = extra_words
+        .iter()
+        .map(String::as_str)
+        .chain(WARMUP_WORDS.iter().copied());
+    for word in words {
         work.warmup.push_back(WarmupItem {
             model_path: model_path.to_string(),
-            text: (*word).to_string(),
+            text: word.to_string(),
             char_mode: false,
             scales,
         });
@@ -494,7 +539,8 @@ fn speak_job(
                 rev,
                 chunk,
             );
-            let mut audio = match cache.get(&key) {
+            let cache_enabled = shared.cache_enabled.load(Ordering::SeqCst);
+            let mut audio = match cache.get(&key).filter(|_| cache_enabled) {
                 Some(a) => a,
                 None => {
                     let mut produced = synth_chunk(
@@ -511,7 +557,9 @@ fn speak_job(
                     }
                     match produced {
                         Some(a) => {
-                            cache.put(key, a.clone());
+                            if cache_enabled {
+                                cache.put(key, a.clone());
+                            }
                             a
                         }
                         None => continue,

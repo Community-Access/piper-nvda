@@ -34,6 +34,29 @@ any rate or pitch. This is the single largest behavioural difference from
 other Piper add-ons for NVDA. The cost is disk and memory for the cache, and
 the discipline that anything affecting model output must be in the key.
 
+## The prepared list is extensible, and the whole cache is optional
+
+**Context.** The built-in warmup list is what every NVDA user hears: control
+types, states, punctuation names, the alphabet. It cannot cover one person's
+own vocabulary, and there was no way to see the cache, turn it off, or throw
+it away.
+
+**Decision.** Let the user add phrases, queued ahead of the built-in words
+because they were asked for specifically. Add a setting that turns preparation
+and reuse off entirely, and a rebuild action that discards everything and
+prepares again.
+
+**Decision detail: 40 characters.** A prepared phrase only pays off if it
+reaches the synthesizer as one chunk, and the chunker splits the first clause
+near 40 characters to get speech started sooner. Anything longer would be
+prepared as text that is never asked for as a unit, so the dialog refuses it
+and says why rather than silently wasting the work.
+
+**Consequences.** Someone who hears "Unread message from" fifty times a day
+can make it instant. Someone short of disk can turn the whole thing off and
+still have working speech, just without instant echo. The cost is three more
+protocol messages and one more file in the data directory.
+
 ## Rate is a post-cache time-stretch, not a model parameter
 
 **Context.** Piper exposes `length_scale`, which changes how fast the model
@@ -104,13 +127,33 @@ would need measurements on a discrete GPU showing a win on *short* utterances,
 not just on long ones.
 
 **What removing it did not do.** The prebuilt ONNX Runtime that `ort`
-downloads is a DirectML-enabled build, and the cargo feature only gated the
-Rust-side API, so `piper-helper.exe` still imports `DirectML.dll`,
-`d3d12.dll`, and `dxgi.dll` at load time. Those are inbox from Windows 10
-(DirectML from version 1903), which is why the supported floor is Windows 10
-and not Windows 8.1. Dropping the imports needs a CPU-only runtime, which
-means `ort`'s `load-dynamic` and shipping our own `onnxruntime.dll`;
-`tools/pe_imports.py` is what makes the current state checkable.
+downloads is a DirectML-enabled build, and `ort-sys`'s build script emits
+`cargo:rustc-link-lib=DirectML`, `D3D12`, `DXGI`, and `DXCORE` unconditionally,
+so `piper-helper.exe` still imports `DirectML.dll`, `d3d12.dll`, and
+`dxgi.dll` at load time. The cargo feature only ever gated the Rust-side API.
+`tools/pe_imports.py` is what makes this checkable.
+
+Dropping those imports would mean `ort`'s `load-dynamic` feature and shipping
+our own CPU-only `onnxruntime.dll`. That work is not being done: every one of
+those libraries is part of Windows 11, which is the only version this add-on
+supports, so the imports cost nothing. It is worth revisiting only if the
+supported range ever widens downward.
+
+## Windows 11 and later only
+
+**Context.** NVDA itself supports Windows 10 and later. The add-on runs on
+Windows 10 too: everything it links against has been part of Windows since
+version 1903.
+
+**Decision.** Support Windows 11 and later, and say so. Test there only.
+
+**Consequences.** A narrower support surface than NVDA's, chosen so that
+testing effort goes where the users are rather than into an older Windows
+nobody has verified this on. Nothing blocks installation on Windows 10, since
+it works and blocking would take away something that functions; the driver
+logs a warning naming the Windows build when it starts on anything older than
+Windows 11, so a report from an unsupported machine explains itself without
+the user having to know.
 
 ## The Visual C++ runtime ships inside the add-on
 

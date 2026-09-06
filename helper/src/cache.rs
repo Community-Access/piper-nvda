@@ -58,6 +58,16 @@ impl AudioCache {
         )
     }
 
+    /// Drop everything, in memory and on disk. Used when the user asks for
+    /// the prepared audio to be rebuilt.
+    pub fn clear(&mut self) {
+        self.map.clear();
+        self.dirty = false;
+        if let Some(path) = &self.path {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
     pub fn get(&mut self, key: &str) -> Option<Vec<f32>> {
         self.clock += 1;
         let clock = self.clock;
@@ -210,6 +220,24 @@ mod tests {
         assert_ne!(a, AudioCache::key("v", false, false, "1.30,1.00,1.00", 0, "a"));
         assert_ne!(a, AudioCache::key("v", false, false, "1.00,1.20,1.00", 0, "a"));
         assert_ne!(a, AudioCache::key("v", false, false, plain, 9, "a"));
+    }
+
+    #[test]
+    fn clear_empties_memory_and_disk() {
+        let dir = std::env::temp_dir().join("piper_cache_clear_test");
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("piper-audio.kcache");
+        let _ = std::fs::remove_file(&file);
+        let mut c = AudioCache::new(Some(&dir));
+        c.put("hello".to_string(), vec![0.5]);
+        c.save();
+        assert!(file.exists());
+        c.clear();
+        assert!(c.get("hello").is_none());
+        assert!(!file.exists());
+        // A cleared cache saves nothing rather than rewriting what it had.
+        c.save();
+        assert!(!file.exists());
     }
 
     #[test]

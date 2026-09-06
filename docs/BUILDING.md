@@ -7,7 +7,7 @@
 - **Python 3.11+** for the build and test scripts. (The add-on code itself is
   written to run on NVDA's embedded Python, which is 3.11 on NVDA 2025.x and
   3.13 on 2026.1+; avoid syntax newer than 3.11 in `addon/`.)
-- **Windows 10/11 64-bit**.
+- **Windows 11 64-bit**, which is also the only version the add-on supports.
 - **Visual Studio Build Tools with the C++ workload**, for the redistributable
   copies of the Visual C++ runtime that packaging bundles. Packaging fails
   with an explanation if it cannot find them; `PIPER_CRT_DIR` points it at a

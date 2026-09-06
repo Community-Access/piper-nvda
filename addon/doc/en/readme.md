@@ -5,8 +5,8 @@ offline. Inference happens in a bundled 64-bit helper process, so it works on
 both 32-bit NVDA (2025.x) and 64-bit NVDA (2026.1+), and a crash in the model
 can never take down NVDA.
 
-Requires Windows 10 (64-bit) or Windows 11. Nothing else needs installing:
-the Visual C++ runtime the speech engine uses ships inside the add-on.
+Requires Windows 11 or later, 64-bit. Nothing else needs installing: the
+Visual C++ runtime the speech engine uses ships inside the add-on.
 
 ## First use
 
@@ -31,6 +31,8 @@ remove voices.
   trained; lower is flatter and steadier, higher is more animated.
 - Pause between sentences: silence after a sentence; clause endings get a
   shorter share of it, and pauses shorten with the rate.
+- Prepare audio in the background: on by default; turn it off to trade
+  instant echo for disk and memory.
 - Show advanced voice parameters: replaces Expressiveness with Piper's own
   noise scale, noise W, and length scale, each as a percentage of the voice's
   trained value (50 = as trained). Reopen Speech settings after toggling it.
@@ -66,6 +68,13 @@ names, acronyms, and loan words. "Pronunciations" in the voice manager gives a
 word the exact IPA phonemes it should be spoken with, with a Preview button to
 hear the entry before saving it. Entries match whole words, ignore
 capitalization, and apply to every voice.
+
+## Prepared audio
+
+Piper prepares the alphabet and the words NVDA says most often while it is
+idle, so they speak with no delay. "Prepared audio" in the voice manager adds
+words and short phrases of your own to that list, shows how much space it
+uses, and can rebuild it from scratch.
 
 ## Language voices
 

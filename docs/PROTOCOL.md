@@ -30,11 +30,13 @@ Driver to helper:
 | 0x01  | HELLO        | `{version, role, modelLoaded}` (handshake) |
 | 0x02  | SPEAK        | a Speak job (below) |
 | 0x03  | CANCEL       | `{}` - drop all queued and in-flight work |
-| 0x04  | LOAD_VOICE   | `{voice, scales}` - voice = absolute model path; triggers idle warmup at those scales |
+| 0x04  | LOAD_VOICE   | `{voice, scales, extraWords}` - voice = absolute model path; triggers idle warmup at those scales, with the user's phrases queued first |
 | 0x05  | PING         | `{}` |
 | 0x06  | SHUTDOWN     | `{}` |
 | 0x07  | PLAY_SAMPLE  | `{path}` - decode and play an mp3 demo |
 | 0x08  | SET_LEXICON  | `{rev, entries}` - replace the pronunciation lexicon |
+| 0x09  | SET_CACHE    | `{enabled}` - turn preparation and reuse on or off; switching off also drops any queued warmup |
+| 0x0A  | CLEAR_CACHE  | `{}` - discard the prepared audio, in memory and on disk |
 
 Helper to driver:
 

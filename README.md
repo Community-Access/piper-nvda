@@ -18,6 +18,12 @@ cache that makes typing echo and navigation instant.
 - Reuse voices you already downloaded for the Sonata or Dengjen add-ons, or
   install a voice from a file with no internet connection at all.
 
+## Requirements
+
+Windows 11 or later (64-bit) and NVDA 2025.1 or later. Nothing else: the
+Visual C++ runtime the speech engine needs ships inside the add-on, and voices
+are downloaded on demand.
+
 ## Quick start
 
 1. Install the add-on (NVDA menu, Tools, Add-on Store, or Install from

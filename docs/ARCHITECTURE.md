@@ -116,9 +116,20 @@ chunks that use it rather than the whole cache.
 
 On startup and voice change the driver sends a LOAD_VOICE message. The helper
 then warms the alphabet and a curated list of common NVDA words for that voice
-during idle time only, yielding to any real speech. The cache is persisted to
-disk, so after the first session character echo and common announcements are
-instant immediately.
+during idle time only, yielding to any real speech. LOAD_VOICE also carries
+the user's own phrases from `warmup.json`, which are queued ahead of the
+built-in words: they were asked for specifically, and preparation is idle work
+that any burst of speech interrupts. The cache is persisted to disk, so after
+the first session character echo and common announcements are instant
+immediately.
+
+Two controls exist for it. SET_CACHE turns preparation and reuse off or on;
+the flag is an atomic because both the reader and the worker thread read it,
+and switching it off also empties the pending warmup queue. CLEAR_CACHE
+discards everything in memory and on disk and is followed by a fresh
+LOAD_VOICE, which is how "rebuild prepared audio" works. When Piper is not the
+running synthesizer there is no helper holding the file, so the voice manager
+simply deletes it.
 
 ## Phonemes
 

@@ -15,6 +15,7 @@ from synthDrivers.piper import (
     _paths,
     _phonemes,
     _voices,
+    _warmup,
 )
 
 
@@ -294,3 +295,38 @@ def test_download_checks_the_config_before_fetching_the_model(tmp_path):
     assert requested == ["http://example/model.onnx.json"]
     assert not os.path.isfile(_paths.voice_config_path(Voice.key))
     assert not os.path.isfile(_paths.voice_model_path(Voice.key))
+
+
+# -- extra phrases to prepare ----------------------------------------------
+
+def test_warmup_starts_empty_and_round_trips():
+    assert _warmup.load() == []
+    assert _warmup.save(["Inbox", "Teams"]) == ["Inbox", "Teams"]
+    assert _warmup.load() == ["Inbox", "Teams"]
+
+
+def test_warmup_normalizes_whitespace_and_duplicates():
+    saved = _warmup.save(["  Inbox  ", "in a  moment", "INBOX", "", "   "])
+    # Order is the order the user gave, case-insensitive duplicates dropped.
+    assert saved == ["Inbox", "in a moment"]
+
+
+def test_warmup_rejects_phrases_too_long_to_help():
+    # Longer than the helper's first-chunk target, so it would be split
+    # before it was ever looked up.
+    too_long = "x" * (_warmup.MAX_LENGTH + 1)
+    assert _warmup.clean([too_long]) == []
+    just_right = "y" * _warmup.MAX_LENGTH
+    assert _warmup.clean([just_right]) == [just_right]
+
+
+def test_warmup_caps_the_list():
+    many = ["phrase %d" % i for i in range(_warmup.MAX_ENTRIES + 50)]
+    assert len(_warmup.clean(many)) == _warmup.MAX_ENTRIES
+
+
+def test_warmup_survives_a_damaged_file():
+    os.makedirs(_paths.data_dir(), exist_ok=True)
+    with open(_warmup.path(), "w", encoding="utf-8") as f:
+        f.write("[not json")
+    assert _warmup.load() == []

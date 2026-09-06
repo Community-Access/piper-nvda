@@ -212,8 +212,9 @@ def test_phoneme_command_audio_differs_from_the_text():
         assert as_phonemes != spoken
 
         # Phonemes the voice does not have fall back to the word they stood
-        # for, rather than going silent. The model is stochastic, so compare
-        # duration rather than bytes.
+        # for, rather than going silent. The fallback reaches the model by a
+        # different route and its output is close to, but not byte-identical
+        # with, speaking the word directly, so compare duration.
         fallback = session.say("███", ipa=True,
                                fallbackText="tomato")
         assert fallback
@@ -275,3 +276,31 @@ def test_a_voice_needing_another_phonemizer_is_refused():
         for path in (fake_model, fake_model + ".json"):
             if os.path.exists(path):
                 os.remove(path)
+
+
+def test_speech_survives_the_cache_being_switched_off_and_rebuilt():
+    """Turning preparation off, and rebuilding it, must never cost speech.
+
+    The model is deterministic, so audio cannot show whether a cache was
+    used; that the cache is actually bypassed and cleared is covered by the
+    helper's own tests. What matters here is that the messages leave speech
+    working.
+    """
+    session = _Session()
+    try:
+        first = session.say("Cache test.")
+        assert first
+        assert session.say("Cache test.") == first
+
+        session.helper.send(proto.SET_CACHE, {"enabled": False})
+        assert session.say("Cache test.") == first
+
+        session.helper.send(proto.SET_CACHE, {"enabled": True})
+        session.helper.send(proto.CLEAR_CACHE, {})
+        assert session.say("Cache test.") == first
+
+        # Unknown or malformed control messages must not wedge the worker.
+        session.helper.send(proto.SET_CACHE, {"nonsense": True})
+        assert session.say("Cache test.") == first
+    finally:
+        session.close()

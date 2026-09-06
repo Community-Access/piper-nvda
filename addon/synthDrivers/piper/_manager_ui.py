@@ -31,6 +31,7 @@ from . import (
     _paths,
     _protocol as proto,
     _voices,
+    _warmup,
 )
 
 _MB = 1024 * 1024
@@ -71,20 +72,22 @@ def open_manager():
 def _notify_synth(method):
     """Ask the running Piper synthesizer to pick up changed settings.
 
-    Nothing happens when another synthesizer is active; the new files are read
-    the next time Piper starts.
+    Returns whether it was reached. Nothing happens when another synthesizer
+    is active; the new files are read the next time Piper starts.
     """
     try:
         import synthDriverHandler
         synth = synthDriverHandler.getSynth()
     except Exception:
-        return
+        return False
     if synth is None or getattr(synth, "name", None) != "piper":
-        return
+        return False
     try:
         getattr(synth, method)()
     except Exception:
         log.exception("piper: %s failed", method)
+        return False
+    return True
 
 
 class DemoPlayer:
@@ -241,10 +244,13 @@ class VoiceBrowserDialog(wx.Dialog):
         # Translators: choose which voice each language uses.
         langBtn = wx.Button(self, label=_("Language &voices..."))
         langBtn.Bind(wx.EVT_BUTTON, self._on_language_voices)
+        # Translators: manage the audio prepared in advance for instant echo.
+        audioBtn = wx.Button(self, label=_("Prepared &audio..."))
+        audioBtn.Bind(wx.EVT_BUTTON, self._on_prepared_audio)
         # Translators: close the manager.
         closeBtn = wx.Button(self, wx.ID_CLOSE, label=_("&Close"))
         closeBtn.Bind(wx.EVT_BUTTON, lambda e: self.Close())
-        for b in (importBtn, fileBtn, lexBtn, langBtn, closeBtn):
+        for b in (importBtn, fileBtn, lexBtn, langBtn, audioBtn, closeBtn):
             tools.Add(b, border=4, flag=wx.ALL)
         main.Add(tools, flag=wx.ALIGN_CENTER)
 
@@ -436,6 +442,12 @@ class VoiceBrowserDialog(wx.Dialog):
         dlg = LanguageVoicesDialog(self, installed)
         if dlg.ShowModal() == wx.ID_OK:
             _notify_synth("reload_language_voices")
+        dlg.Destroy()
+
+    def _on_prepared_audio(self, evt):
+        dlg = PreparedAudioDialog(self)
+        if dlg.ShowModal() == wx.ID_OK:
+            _notify_synth("reload_warmup_words")
         dlg.Destroy()
 
     def _keep_selection(self, voice_key):
@@ -834,6 +846,180 @@ class LanguageVoicesDialog(wx.Dialog):
                 # Translators: {error} explains why saving failed.
                 _("The language assignments could not be saved: {error}")
                 .format(error=e),
+                _("Piper Neural Voices"), wx.OK | wx.ICON_ERROR, self)
+            return
+        self.EndModal(wx.ID_OK)
+
+
+def _cache_size_bytes():
+    try:
+        return os.path.getsize(_paths.cache_file())
+    except OSError:
+        return 0
+
+
+class PreparedAudioDialog(wx.Dialog):
+    """Manage the audio the helper prepares during idle time.
+
+    The built-in list covers the alphabet and the words NVDA says constantly.
+    What it cannot know is one person's own vocabulary: the app they live in,
+    a colleague's name, a status message their tools repeat. Those go here.
+    """
+
+    def __init__(self, parent):
+        # Translators: title of the prepared-audio dialog.
+        super().__init__(parent, title=_("Prepared audio"),
+                         style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        self._words = _warmup.load()
+
+        main = wx.BoxSizer(wx.VERTICAL)
+        # Translators: explains what preparing audio does.
+        main.Add(wx.StaticText(self, label=_(
+            "Piper prepares the alphabet and the words NVDA says most often "
+            "while it is idle, so they speak with no delay. Add words and "
+            "short phrases of your own here to have them prepared too.")),
+            border=5, flag=wx.ALL)
+        # Translators: label for the list of phrases the user added.
+        main.Add(wx.StaticText(self, label=_("Your &words and phrases:")),
+                 border=5, flag=wx.LEFT | wx.TOP)
+        self._list = wx.ListBox(self, style=wx.LB_SINGLE, size=(520, 220))
+        self._list.Bind(wx.EVT_LISTBOX, lambda e: self._update_buttons())
+        main.Add(self._list, proportion=1, border=5, flag=wx.ALL | wx.EXPAND)
+
+        btns = wx.BoxSizer(wx.HORIZONTAL)
+        # Translators: add a phrase to prepare.
+        addBtn = wx.Button(self, label=_("&Add..."))
+        addBtn.Bind(wx.EVT_BUTTON, self._on_add)
+        # Translators: change the selected phrase.
+        self._editBtn = wx.Button(self, label=_("&Edit..."))
+        self._editBtn.Bind(wx.EVT_BUTTON, self._on_edit)
+        # Translators: delete the selected phrase.
+        self._removeBtn = wx.Button(self, label=_("&Remove"))
+        self._removeBtn.Bind(wx.EVT_BUTTON, self._on_remove)
+        for b in (addBtn, self._editBtn, self._removeBtn):
+            btns.Add(b, border=4, flag=wx.ALL)
+        main.Add(btns, flag=wx.ALIGN_CENTER)
+
+        self._sizeLabel = wx.StaticText(self, label=self._size_text())
+        main.Add(self._sizeLabel, border=5, flag=wx.ALL)
+        rebuildRow = wx.BoxSizer(wx.HORIZONTAL)
+        # Translators: throw away the prepared audio and prepare it again.
+        rebuildBtn = wx.Button(self, label=_("Re&build prepared audio"))
+        rebuildBtn.Bind(wx.EVT_BUTTON, self._on_rebuild)
+        rebuildRow.Add(rebuildBtn, border=4, flag=wx.ALL)
+        main.Add(rebuildRow, flag=wx.ALIGN_CENTER)
+
+        closeRow = wx.BoxSizer(wx.HORIZONTAL)
+        okBtn = wx.Button(self, wx.ID_OK, label=_("&Save"))
+        okBtn.Bind(wx.EVT_BUTTON, self._on_save)
+        closeRow.Add(okBtn, border=4, flag=wx.ALL)
+        closeRow.Add(wx.Button(self, wx.ID_CANCEL), border=4, flag=wx.ALL)
+        main.Add(closeRow, flag=wx.ALIGN_CENTER)
+
+        self.SetSizerAndFit(main)
+        self._refresh()
+        self._list.SetFocus()
+
+    def _size_text(self):
+        megabytes = _cache_size_bytes() / _MB
+        # Translators: {size} is the size of the prepared audio in megabytes.
+        return _("Prepared audio currently uses {size} MB.").format(
+            size="%.1f" % megabytes)
+
+    def _refresh(self, select=None):
+        self._list.Set(self._words)
+        if self._words:
+            index = self._words.index(select) if select in self._words else 0
+            self._list.SetSelection(index)
+        self._update_buttons()
+
+    def _update_buttons(self):
+        has = self._list.GetSelection() != wx.NOT_FOUND
+        self._editBtn.Enable(has)
+        self._removeBtn.Enable(has)
+
+    def _selected(self):
+        index = self._list.GetSelection()
+        if index == wx.NOT_FOUND or index >= len(self._words):
+            return None
+        return self._words[index]
+
+    def _ask(self, title, value):
+        dlg = wx.TextEntryDialog(
+            self,
+            # Translators: {limit} is the longest phrase that can be prepared.
+            _("Word or phrase, up to {limit} characters:").format(
+                limit=_warmup.MAX_LENGTH),
+            title, value)
+        text = dlg.GetValue() if dlg.ShowModal() == wx.ID_OK else None
+        dlg.Destroy()
+        return text
+
+    def _on_add(self, evt):
+        # Translators: title of the prompt for a new phrase.
+        text = self._ask(_("Add a phrase"), "")
+        self._store(None, text)
+
+    def _on_edit(self, evt):
+        current = self._selected()
+        if current is None:
+            return
+        # Translators: title of the prompt for changing a phrase.
+        self._store(current, self._ask(_("Edit the phrase"), current))
+
+    def _store(self, previous, text):
+        if text is None:
+            return
+        candidate = list(self._words)
+        if previous is not None and previous in candidate:
+            candidate[candidate.index(previous)] = text
+        else:
+            candidate.append(text)
+        cleaned = _warmup.clean(candidate)
+        if text.strip() and text.strip() not in cleaned:
+            gui.messageBox(
+                # Translators: {limit} is the longest phrase allowed.
+                _("A phrase must be no longer than {limit} characters. "
+                  "Longer text is split before it is spoken, so preparing it "
+                  "would not make anything faster.").format(
+                      limit=_warmup.MAX_LENGTH),
+                _("Piper Neural Voices"), wx.OK | wx.ICON_INFORMATION, self)
+            return
+        self._words = cleaned
+        self._refresh(text.strip())
+
+    def _on_remove(self, evt):
+        current = self._selected()
+        if current is None:
+            return
+        self._words = [w for w in self._words if w != current]
+        # Translators: {word} was removed from the prepared list.
+        _announce(_("Removed {word}").format(word=current))
+        self._refresh()
+
+    def _on_rebuild(self, evt):
+        """Throw the prepared audio away and start again.
+
+        The running synthesizer owns the file, so it has to do the work; when
+        Piper is not the active synthesizer there is nothing holding it and
+        the file can simply go.
+        """
+        if not _notify_synth("rebuild_cache"):
+            try:
+                os.remove(_paths.cache_file())
+            except OSError:
+                pass
+        self._sizeLabel.SetLabel(self._size_text())
+        _announce(_("Rebuilding prepared audio"))
+
+    def _on_save(self, evt):
+        try:
+            _warmup.save(self._words)
+        except OSError as e:
+            log.exception("piper: saving the prepared phrases failed")
+            gui.messageBox(
+                # Translators: {error} explains why saving failed.
+                _("The phrases could not be saved: {error}").format(error=e),
                 _("Piper Neural Voices"), wx.OK | wx.ICON_ERROR, self)
             return
         self.EndModal(wx.ID_OK)

@@ -18,6 +18,8 @@ pub mod msg_type {
     pub const SHUTDOWN: u8 = 0x06;
     pub const PLAY_SAMPLE: u8 = 0x07;
     pub const SET_LEXICON: u8 = 0x08;
+    pub const SET_CACHE: u8 = 0x09;
+    pub const CLEAR_CACHE: u8 = 0x0A;
     pub const AUDIO: u8 = 0x81;
     pub const MARKER: u8 = 0x82;
     pub const DONE: u8 = 0x83;
@@ -146,6 +148,16 @@ pub struct LoadVoice {
     /// The scales the cache should be warmed at (see Segment::scales).
     #[serde(default)]
     pub scales: Scales,
+    /// Phrases to prepare in addition to the built-in list, from the user.
+    #[serde(default)]
+    pub extra_words: Vec<String>,
+}
+
+/// Turn background preparation and caching on or off.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetCache {
+    pub enabled: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
