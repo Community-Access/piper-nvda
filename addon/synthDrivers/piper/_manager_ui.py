@@ -131,7 +131,7 @@ class VoiceBrowserDialog(wx.Dialog):
 
         main = wx.BoxSizer(wx.VERTICAL)
 
-        # Language filter.
+        # Language and quality filters.
         filterRow = wx.BoxSizer(wx.HORIZONTAL)
         # Translators: label for the language filter.
         filterRow.Add(wx.StaticText(self, label=_("&Language:")),
@@ -140,6 +140,13 @@ class VoiceBrowserDialog(wx.Dialog):
         self._langChoice.SetSelection(0)
         self._langChoice.Bind(wx.EVT_CHOICE, lambda e: self._refresh_list())
         filterRow.Add(self._langChoice, border=5, flag=wx.ALL)
+        # Translators: label for the quality filter.
+        filterRow.Add(wx.StaticText(self, label=_("&Quality:")),
+                      border=5, flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL)
+        self._qualityChoice = wx.Choice(self, choices=[_("All qualities")])
+        self._qualityChoice.SetSelection(0)
+        self._qualityChoice.Bind(wx.EVT_CHOICE, lambda e: self._refresh_list())
+        filterRow.Add(self._qualityChoice, border=5, flag=wx.ALL)
         main.Add(filterRow, flag=wx.EXPAND)
 
         # Voice list.
@@ -158,17 +165,15 @@ class VoiceBrowserDialog(wx.Dialog):
         # Translators: stop the demo.
         self._stopBtn = wx.Button(self, label=_("&Stop demo"))
         self._stopBtn.Bind(wx.EVT_BUTTON, lambda e: self._demo.stop())
+        # One button that becomes Download or Remove depending on whether the
+        # selected voice is installed.
         # Translators: download the selected voice.
-        self._dlBtn = wx.Button(self, label=_("&Download"))
-        self._dlBtn.Bind(wx.EVT_BUTTON, self._on_download)
-        # Translators: remove an installed voice.
-        self._rmBtn = wx.Button(self, label=_("&Remove"))
-        self._rmBtn.Bind(wx.EVT_BUTTON, self._on_remove)
+        self._actionBtn = wx.Button(self, label=_("&Download"))
+        self._actionBtn.Bind(wx.EVT_BUTTON, self._on_action)
         # Translators: close the manager.
         closeBtn = wx.Button(self, wx.ID_CLOSE, label=_("&Close"))
         closeBtn.Bind(wx.EVT_BUTTON, lambda e: self.Close())
-        for b in (self._demoBtn, self._stopBtn, self._dlBtn, self._rmBtn,
-                  closeBtn):
+        for b in (self._demoBtn, self._stopBtn, self._actionBtn, closeBtn):
             btns.Add(b, border=4, flag=wx.ALL)
         main.Add(btns, flag=wx.ALIGN_CENTER)
 
@@ -193,11 +198,20 @@ class VoiceBrowserDialog(wx.Dialog):
 
         threading.Thread(target=worker, daemon=True).start()
 
+    # Order qualities from smallest/fastest to largest/best.
+    _QUALITY_ORDER = ["x_low", "low", "medium", "high"]
+
     def _on_catalog_loaded(self, voices):
         self._voices = voices
         langs = sorted({v.lang_english for v in voices if v.lang_english})
         self._langChoice.Set([_("All languages")] + langs)
         self._langChoice.SetSelection(0)
+        present = {v.quality for v in voices if v.quality}
+        qualities = [q for q in self._QUALITY_ORDER if q in present]
+        qualities += sorted(present - set(self._QUALITY_ORDER))
+        self._qualities = qualities
+        self._qualityChoice.Set([_("All qualities")] + qualities)
+        self._qualityChoice.SetSelection(0)
         self._refresh_list()
         if voices:
             _announce(_("{count} voices available").format(count=len(voices)))
@@ -210,13 +224,18 @@ class VoiceBrowserDialog(wx.Dialog):
         idx = self._langChoice.GetSelection()
         if idx > 0:
             sel_lang = self._langChoice.GetString(idx)
+        sel_quality = None
+        qidx = self._qualityChoice.GetSelection()
+        if qidx > 0:
+            sel_quality = self._qualityChoice.GetString(qidx)
         self._filtered = [
             v for v in self._voices
-            if sel_lang is None or v.lang_english == sel_lang
+            if (sel_lang is None or v.lang_english == sel_lang)
+            and (sel_quality is None or v.quality == sel_quality)
         ]
         labels = []
         for v in self._filtered:
-            # Translators: {status} is Installed or blank.
+            # Translators: shown after an installed voice's name.
             status = _(" [installed]") if v.installed else ""
             size = (" - %d MB" % round(v.model_size / _MB)
                     if v.model_size else "")
@@ -235,9 +254,14 @@ class VoiceBrowserDialog(wx.Dialog):
     def _update_buttons(self):
         v = self._selected_voice()
         has = v is not None
-        self._dlBtn.Enable(has and not v.installed)
-        self._rmBtn.Enable(has and v.installed)
         self._demoBtn.Enable(has)
+        self._actionBtn.Enable(has)
+        if has and v.installed:
+            # Translators: button to remove the selected installed voice.
+            self._actionBtn.SetLabel(_("&Remove"))
+        else:
+            # Translators: button to download the selected voice.
+            self._actionBtn.SetLabel(_("&Download"))
 
     # -- actions -----------------------------------------------------------
 
@@ -261,20 +285,28 @@ class VoiceBrowserDialog(wx.Dialog):
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _on_download(self, evt):
+    def _on_action(self, evt):
         v = self._selected_voice()
-        if v is None or v.installed:
+        if v is None:
             return
-        if _download_voice_with_progress(self, v):
+        if v.installed:
+            _download.remove_voice(v.key)
+            _announce(_("Removed {name}").format(name=v.name))
             self._refresh_list()
+            self._keep_selection(v.key)
+        else:
+            if _download_voice_with_progress(self, v):
+                self._refresh_list()
+                self._keep_selection(v.key)
 
-    def _on_remove(self, evt):
-        v = self._selected_voice()
-        if v is None or not v.installed:
-            return
-        _download.remove_voice(v.key)
-        _announce(_("Removed {name}").format(name=v.name))
-        self._refresh_list()
+    def _keep_selection(self, voice_key):
+        """Reselect a voice by key after the list is rebuilt, so focus stays
+        on the item the user just acted on."""
+        for i, voice in enumerate(self._filtered):
+            if voice.key == voice_key:
+                self._list.SetSelection(i)
+                break
+        self._update_buttons()
 
     def _on_close(self, evt):
         self._demo.close()
