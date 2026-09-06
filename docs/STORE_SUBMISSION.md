@@ -163,6 +163,8 @@ this repository generates is the file to upload.
 Known gaps at 1.0.0, none of which block a GitHub release but all of which are
 worth closing before asking users to depend on the add-on:
 
+- **The dialogs have grown.** There are now eight, and the accessibility
+  table in [TESTING.md](TESTING.md) covers all of them.
 - **No completed translations.** The pipeline, the template, and the
   documentation for translators exist; no language has been translated yet.
   English-only is acceptable for the store, but a screen reader add-on gets

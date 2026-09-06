@@ -75,31 +75,32 @@ change a value).
   changes the pitch.
 - **Rate boost**: extends the top speed considerably, for people who read
   very fast. It is off by default and changes nothing until you turn it on.
+- **Pitch**: raises or lowers the voice.
+- **Volume**: loudness of the voice.
+- **Pause between sentences**: how much silence follows a sentence. Commas,
+  semicolons, and colons get a shorter pause automatically. Pauses shorten
+  with the rate, so fast speech does not become mostly silence. Set it to 0
+  for the tightest possible delivery.
 - **Remember settings for each voice**: on by default. Rate, rate boost,
   pitch, volume, speaker, and expressiveness are remembered against the voice
   they were set for, so moving between a fast low-quality voice and a slow
   high-quality one does not mean retuning every time. A voice you have not
   adjusted yet simply keeps whatever is set, so switching to a new voice never
   changes how it sounds by itself.
-- **Pitch**: raises or lowers the voice.
-- **Volume**: loudness of the voice.
-- **Expressiveness**: how much the voice varies its delivery. 50 is the
-  voice exactly as it was trained. Lower values are flatter and steadier,
-  which many people find easier to follow at high speed; higher values are
-  more animated. Changing this re-prepares the cached words in the
-  background, so echo stays instant.
-- **Pause between sentences**: how much silence follows a sentence. Commas,
-  semicolons, and colons get a shorter pause automatically. Pauses shorten
-  with the rate, so fast speech does not become mostly silence. Set it to 0
-  for the tightest possible delivery.
 - **Prepare audio in the background for instant echo**: on by default. Piper
   prepares the alphabet, the digits, every punctuation mark and symbol along
   with the names NVDA gives them, the numbers, and the words NVDA says most
   often, and it remembers what it has already said. Those then speak with no
   delay at all. Turn it off to save disk and memory at the cost of that
   instant echo.
-- **Show advanced voice parameters**: replaces Expressiveness with the three
-  parameters the voice model actually uses. See below.
+- **Show advanced voice parameters**: swaps the Expressiveness control below
+  for the three parameters the voice model actually uses. See below.
+- **Expressiveness**: how much the voice varies its delivery. 50 is the
+  voice exactly as it was trained. Lower values are flatter and steadier,
+  which many people find easier to follow at high speed; higher values are
+  more animated. Changing this re-prepares the cached words in the
+  background, so echo stays instant. It is replaced by the three advanced
+  parameters when those are switched on.
 
 ### Advanced voice parameters
 

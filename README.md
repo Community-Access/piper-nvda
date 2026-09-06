@@ -54,6 +54,8 @@ head-to-head against the Kokoro neural voices add-on.
 
 - [User guide](docs/USER_GUIDE.md) - install, settings, voice manager,
   pronunciations, troubleshooting.
+- [What this add-on is](docs/PRODUCT.md) - who it is for, what it promises,
+  what it deliberately does not do, and what would make it better.
 - [Architecture](docs/ARCHITECTURE.md) - how the helper, driver, cache, and
   audio pipeline fit together.
 - [Design decisions](docs/DECISIONS.md) - why it works that way, and what
@@ -81,7 +83,9 @@ piper/
   helper/           Rust crate: piper-helper.exe (ONNX inference + espeak-ng)
   tools/            build.py (packaging), i18n.py, fetch_assets.py, benchmarks
   tests/python/     pytest suite with NVDA API stubs
-  docs/             this documentation set
+  docs/             this documentation set (PRODUCT, USER_GUIDE,
+                    ARCHITECTURE, DECISIONS, PROTOCOL, BUILDING, TESTING,
+                    TRANSLATING, STORE_SUBMISSION)
 ```
 
 ## Credits

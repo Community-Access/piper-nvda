@@ -48,8 +48,15 @@ terms: users should read the MODEL_CARD for any voice they rely on.
   the Piper project.
 - **[espeak-ng](https://github.com/espeak-ng/espeak-ng)**: phonemization for
   every supported language.
-- **[NV Access](https://www.nvaccess.org/)**: NVDA and its synthesizer driver
-  API, which this add-on is written against.
+- **[NV Access](https://www.nvaccess.org/)** (NVDA is GPL-2.0): NVDA and its
+  synthesizer driver API, which this add-on is written against. Two lists in
+  this add-on are derived from NVDA's own English symbol dictionary
+  (`source/locale/en/symbols.dic`): the symbol names prepared in advance, in
+  `helper/src/server.rs`, and the character-name fallback table in
+  `helper/src/charnames.rs`. Using NVDA's names rather than invented ones
+  means a symbol is spoken here exactly as it is everywhere else in NVDA.
+  Both are generated rather than hand-copied, and this add-on is
+  GPL-2.0-or-later, so the licences agree.
 - **[Sonata Neural Voices](https://github.com/mush42/sonata-nvda)** (GPL-2.0)
   by Musharraf Omer / Blind Pandas Team, and its maintained fork
   **[Dengjen Neural Voices](https://github.com/OnjLouis/dengjen-nvda)** by
