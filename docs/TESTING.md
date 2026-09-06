@@ -39,11 +39,25 @@ without NVDA. Coverage:
   index boundaries, language switching to a different model, breaks, character
   mode, pitch commands, rate-as-stretch, speaker/variant to `sid`, and the
   available-voice/variant lists.
+- `test_voice_data.py` - the files the add-on manages: lexicon load/save and
+  revision bumps, recovery from a damaged file, language assignment
+  resolution and fallback, discovery and import of Sonata/Dengjen voices, and
+  installing from an archive or a model file (including rejection of a
+  path-traversal archive and of an archive with no model/config pair).
+- `test_manager_ui_imports.py` - the voice manager cannot be driven without a
+  real wx, so this imports it against a permissive `wx` stub and checks every
+  dialog is still there. It catches the failure that would otherwise only
+  appear inside NVDA: a name used at module scope that no longer exists.
+- `test_i18n.py` - the translation pipeline: string extraction with
+  translator comments, that the committed `.pot` matches the source, and a
+  `.po` to `.mo` round trip read back through `gettext`, including that fuzzy
+  and untranslated entries do not ship.
 - `test_full_stack.py` - drives the **real** `piper-helper.exe` through the
   real `_helperProc` and `_audio` classes: speaks a phrase and checks audio,
-  ordered index markers, and DONE; and plays a real demo mp3 through
-  PLAY_SAMPLE. Skipped automatically if the release build or assets are
-  missing.
+  ordered index markers, and DONE; plays a real demo mp3 through PLAY_SAMPLE;
+  proves a lexicon entry changes the audio and that clearing it restores the
+  original; and proves expressiveness is cached separately. Skipped
+  automatically if the release build or assets are missing.
 
 ## Latency benchmarks
 
@@ -87,13 +101,35 @@ Run through this matrix on each supported configuration:
 | Spelling | Reading by character speaks letters correctly |
 | Say all | Reads a long document, tracks the caret, no stalls |
 | Language switching | With auto language switching on, a mixed-language document uses matching voices |
+| Language voices | An assignment overrides the default choice for that language; "Automatic" restores it |
+| Pronunciations | An entry changes how the word is spoken, in every voice; Preview speaks it before saving; removing it restores the original |
+| Import voices | Voices from an installed Sonata or Dengjen add-on are listed and copied in; that add-on still works afterwards |
+| Install from file | A `.tar.gz` archive and a `.onnx`+`.onnx.json` pair both install |
+| Expressiveness | Changing it audibly changes delivery, and echo stays instant once re-warmed |
 | Rate boost | Very fast speech is intelligible |
 | Cancel | Arrow/keystroke interruption is immediate |
 | Uninstall | Uninstalls cleanly; prompts about deleting voices |
 
+### Accessibility pass on the dialogs
+
+Automated tests can only prove the manager's dialogs import. Every dialog
+(voice manager, Import voices, Pronunciations, Pronunciation entry, Language
+voices) needs a keyboard-only pass before release:
+
+| Check | Expectation |
+|-------|-------------|
+| Reachability | Every control is reachable with Tab and Shift+Tab, in reading order |
+| Labels | Each control announces a meaningful name, not "edit" or "button" alone |
+| Accelerators | Every `&` accelerator works and none collide within a dialog |
+| Initial focus | Focus lands on the list or first field, and is announced |
+| Focus after action | After add, edit, remove, or import, focus is on a sensible item and the change is announced |
+| Escape and Enter | Escape cancels without saving; Enter activates the default button |
+| Progress and errors | Download progress and failures are announced, not only drawn |
+| Screen reader output | Announcements are useful heard aloud, not just technically present |
+
 Configurations to cover: NVDA 2025.1 (32-bit) and the latest 2026.x (64-bit);
 Windows 10 and 11; at least one low-quality and one medium-quality voice; and,
-if available, a machine with a DirectML-capable GPU for the GPU toggle.
+if available, a second machine with a slower CPU to sanity-check latency.
 
 ## Pre-release verification checklist
 
@@ -104,5 +140,9 @@ if available, a machine with a DirectML-capable GPU for the GPU toggle.
 - [ ] `python tools/build.py` produces the `.nvda-addon` with no
       `__pycache__`/`.pyc` and with the helper and espeak payload present.
 - [ ] Manual matrix passed on 32-bit and 64-bit NVDA.
+- [ ] Accessibility pass completed on all five dialogs.
+- [ ] `python tools/i18n.py extract` run and `nvda.pot` committed if strings
+      changed (the `test_pot_is_current` test enforces this).
+- [ ] `python tools/i18n.py compile` reports no unreadable `.po` files.
 - [ ] `readme.html` opens correctly from the Add-on Store help.
 - [ ] `lastTestedNVDAVersion` matches the newest NVDA verified.

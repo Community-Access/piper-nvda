@@ -24,7 +24,8 @@ remove voices.
 - Rate and Rate boost: rate boost extends the top speed for fast-speech users
   by time-stretching without changing pitch.
 - Pitch and Volume.
-- Use GPU acceleration (DirectML): optional; falls back to CPU.
+- Expressiveness: how much the voice varies its delivery. 50 is the voice as
+  trained; lower is flatter and steadier, higher is more animated.
 
 ## Performance
 
@@ -39,3 +40,21 @@ rate. The cache is saved between sessions.
 Voices come from the Piper voices project and cover dozens of languages at
 several quality levels (x_low, low, medium, high). Downloaded voices are
 stored in your NVDA user configuration folder, so they survive addon updates.
+
+The voice manager can also reuse voices you already have. "Import voices"
+finds voices installed by the Sonata and Dengjen add-ons and copies them in,
+and "Install from file" installs a voice from a .tar.gz archive or a .onnx
+model with its .onnx.json beside it, for computers with no internet access.
+
+## Pronunciations
+
+Voices take their phonemes from espeak-ng, which regularly mispronounces
+names, acronyms, and loan words. "Pronunciations" in the voice manager gives a
+word the exact IPA phonemes it should be spoken with, with a Preview button to
+hear the entry before saving it. Entries match whole words, ignore
+capitalization, and apply to every voice.
+
+## Language voices
+
+With several voices for one language, "Language voices" in the voice manager
+says which one automatic language switching should use.

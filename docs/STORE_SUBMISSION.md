@@ -80,12 +80,12 @@ The submission form computes the SHA256 for you, so you do not normally paste
 it by hand. To verify the file yourself:
 
 ```
-certutil -hashfile dist\piper-neural-0.1.0.nvda-addon SHA256
+certutil -hashfile dist\piper-neural-0.2.0.nvda-addon SHA256
 ```
 
 ## Step 3: publish the file
 
-Create a GitHub release (tag it, e.g. `v0.1.0`) and attach the
+Create a GitHub release (tag it, e.g. `v0.2.0`) and attach the
 `.nvda-addon` as a release asset. Copy its direct download URL. It must:
 
 - start with `https://`,
@@ -109,7 +109,7 @@ against your manifest, so they must agree:
 | `addonId` | manifest `name` (e.g. `piperNeural`) |
 | `channel` | `stable`, `beta`, or `dev` (see the beta/alpha rule above) |
 | `addonVersionNumber` | `{major, minor, patch}` matching the manifest version |
-| `addonVersionName` | the version string, e.g. `0.1.0` |
+| `addonVersionName` | the version string, e.g. `0.2.0` |
 | `displayName` | must match manifest `summary` |
 | `publisher` | you or your organization |
 | `description` | the store description |
@@ -146,12 +146,39 @@ Repeat steps 1-4 with a higher version number. No re-approval is needed once
 you are an approved publisher for the add-on. Keep `lastTestedNVDAVersion`
 current so users on new NVDA releases do not see the "not tested" warning.
 
-## Optional: translations
+## Translations
 
-If you want the store listing and UI translated, register the add-on with the
-NVDA translation system (Crowdin) as described in the addonTemplate
-translation docs. This add-on's strings are already wrapped for gettext
-(`_()`), so adding `.po` files later is straightforward.
+All user-visible strings are extracted to `addon/locale/nvda.pot`, including
+the manifest `summary` and `description` that the store listing shows.
+Packaging compiles any `addon/locale/<lang>/LC_MESSAGES/nvda.po` into the
+add-on automatically, so shipping a language needs nothing but a `.po` file in
+the tree. See [TRANSLATING.md](TRANSLATING.md).
+
+To translate through the NVDA translation system instead, register the add-on
+with Crowdin as described in the addonTemplate translation docs; the `.pot`
+this repository generates is the file to upload.
+
+## Readiness before the first store submission
+
+Known gaps at 0.2.0, none of which block a GitHub release but all of which are
+worth closing before asking users to depend on the add-on:
+
+- **No completed translations.** The pipeline, the template, and the
+  documentation for translators exist; no language has been translated yet.
+  English-only is acceptable for the store, but a screen reader add-on gets
+  much wider use with translations.
+- **The dialogs have not had a manual accessibility pass.** The five dialogs
+  are import-tested only. Run the accessibility table in
+  [TESTING.md](TESTING.md) inside NVDA first.
+- **The manual NVDA matrix has not been run on both NVDA generations.** The
+  32-bit/64-bit claim rests on the helper being out-of-process, which is
+  sound, but it has not been exercised end to end on a 2025.x and a 2026.x
+  install.
+- **The helper binary is unsigned.** Expect SmartScreen friction and possible
+  VirusTotal false positives on the bundled native DLLs; the submission
+  section above covers how NV Access handles that.
+- **No user base yet.** Sonata and Dengjen are established. Expect the first
+  reports to be about voices and pronunciations rather than about the engine.
 
 ## References
 

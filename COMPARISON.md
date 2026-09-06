@@ -1,47 +1,115 @@
-# Piper vs Kokoro: performance comparison
+# How this add-on compares
 
-Both addons share the same architecture (Rust helper + ONNX + espeak-ng, NVDA
-Python driver, cache with idle warmup). The difference is the model. All
-numbers measured on the same machine: AMD Ryzen 5 Surface Edition (Zen 2
-mobile, 6 cores), CPU inference, plugged in.
+Two comparisons matter for this project: against the other Piper-based NVDA
+add-ons a user could install today, and against the Kokoro neural voices
+add-on that shares this project's architecture.
 
-## First-audio latency for NEW (uncached) text
+## What is on offer today
 
-| Case                | Kokoro (fp16) | Piper lessac-medium | Piper ryan-low |
-|---------------------|---------------|---------------------|----------------|
-| single char / word  | ~370-450 ms   | ~21-34 ms           | ~21 ms         |
-| short line          | ~630 ms       | ~55-92 ms           | ~55 ms         |
-| full sentence (total synth) | ~2.0-5.5 s (RTF ~1x) | ~200 ms (RTF ~17x) | ~134 ms (RTF ~22x) |
+| Add-on | Status | Engine |
+|--------|--------|--------|
+| [Sonata Neural Voices](https://github.com/mush42/sonata-nvda) | Last release v3.1.0, June 2024 | Rust `sonata` engine over gRPC, ONNX Runtime, espeak-ng |
+| [Dengjen Neural Voices](https://github.com/OnjLouis/dengjen-nvda) | Maintained fork of Sonata; documents NVDA 2025.1 through 2026.1 | Same engine, kept building against current NVDA |
+| [rmcpantoja/piper-nvda](https://github.com/rmcpantoja/piper-nvda) | Separate Piper driver | Piper |
+| This add-on | 0.2.0 | Rust helper over stdio, ONNX Runtime, espeak-ng |
 
-Piper is roughly 10x faster than Kokoro per inference on this CPU, and runs
-comfortably faster than real time, so say-all of fresh text never falls
-behind. Kokoro on this thermally limited chip hovers around real time.
+Sonata is the original and is no longer released; Dengjen is the version to
+compare against, and is the one this document means whenever it says "the
+Sonata family".
 
-## Cached text (character echo, common words, re-reads)
+**Honesty about method.** The Piper and Kokoro numbers below were measured on
+this machine. The Sonata-family behaviour described here comes from reading
+[its source](https://github.com/mush42/sonata-nvda) and its documentation, not
+from a head-to-head run on the same hardware. Where this document says
+something is faster, it says why structurally rather than quoting a number
+that was never measured.
 
-Both synths cache raw model output and warm the character set plus common
-NVDA words in idle time, so:
+## Measured: first-audio latency for new (uncached) text
 
-| Case                          | Kokoro | Piper |
-|-------------------------------|--------|-------|
-| warmed char / word / re-read  | 0-13 ms (instant) | 0 ms (instant) |
-| cancel-to-silence             | <1 ms  | <1 ms |
+AMD Ryzen 5 Surface Edition (Zen 2 mobile, 6 cores), CPU inference, plugged
+in. Reproduce with
+`helper/target/release/piper-helper.exe --bench --model assets/lessac-medium.onnx`.
+
+| Case | Kokoro (fp16) | Piper lessac-medium | Piper ryan-low |
+|------|---------------|---------------------|----------------|
+| single char / word | ~370-450 ms | ~21-34 ms | ~21 ms |
+| short line | ~630 ms | ~55-92 ms | ~55 ms |
+| full sentence (total synth) | ~2.0-5.5 s (RTF ~1x) | ~180-200 ms (RTF ~17x) | ~134 ms (RTF ~22x) |
+
+## Measured: cached text (character echo, common words, re-reads)
+
+| Case | Kokoro | Piper |
+|------|--------|-------|
+| warmed char / word / re-read | 0-13 ms (instant) | 0 ms (instant) |
+| cancel-to-silence | <1 ms | <1 ms |
+
+## Measured: DirectML is slower than the CPU here
+
+Version 0.1.0 shipped an optional DirectML GPU path and the 18.5 MB
+`DirectML.dll` that goes with it. Measured on the integrated GPU of the
+machine above, same benchmark:
+
+| Case | CPU | DirectML |
+|------|-----|----------|
+| single char | 30-38 ms | 234 ms |
+| short line | 77-82 ms | 277 ms |
+| full sentence | 180-194 ms | 305 ms |
+
+Piper models are small enough that per-inference GPU dispatch overhead
+dominates, and short utterances are exactly what a screen reader spends its
+time on. The option was removed in 0.2.0 rather than left as a setting that
+makes things worse, which also took 18.5 MB off the download.
+
+## Structural differences from the Sonata family
+
+These follow from the design rather than from a benchmark:
+
+- **Audio cache and idle warmup.** This add-on caches raw model output and
+  warms the alphabet plus the words NVDA says most (roles, states, common
+  words) during idle time, persisted between sessions, so character echo and
+  navigation cost no inference at all. The Sonata family has no such cache;
+  its answer to latency is shipping separate "fast" (RT) model variants, which
+  trades quality for speed. Both approaches help; only one of them is free.
+- **Rate does not re-synthesize.** Rate here is a post-cache WSOLA
+  time-stretch and pitch is a post-cache shift, so one cached entry serves
+  every rate, pitch, and volume. The Sonata family changes the model's
+  `length_scale`, so a rate change is new model output.
+- **Live catalog.** Voices are read straight from the
+  [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices)
+  `voices.json` (~176 voices), so new voices appear without an add-on update.
+  The Sonata family installs repackaged archives, which need maintainer action
+  for anything new. This add-on can also install those archives (see below).
+- **Pronunciation lexicon.** Whole-word IPA overrides with a preview button,
+  applied before phonemization. The Sonata family, and Piper generally, leave
+  you with whatever espeak-ng guesses; its own documentation notes that "some
+  voices may exhibit incorrect or weird pronunciation".
+- **Per-language voice assignment.** With several voices for one language, you
+  choose which one automatic language switching uses.
+
+## Where the Sonata family is still ahead
+
+- **Maturity.** Sonata has been in use for years and Dengjen is actively
+  maintained; this add-on is new and has no user base yet.
+- **Translations.** Sonata ships many locales and translated documentation.
+  This add-on has the extraction pipeline and a template, and no completed
+  translations yet.
+- **Expressiveness controls.** Dengjen exposes `length_scale`, `noise_scale`,
+  and `noise_w` directly. This add-on exposes one Expressiveness setting
+  instead, which is easier to use but less precise.
+
+## Switching cost
+
+Because both store ordinary Piper `.onnx` models on disk, "Import voices" in
+the voice manager copies voices installed by Sonata or Dengjen instead of
+re-downloading them, and "Install from file" accepts their `.tar.gz` voice
+archives. Nothing is moved or deleted, so the other add-on keeps working.
 
 ## Takeaway
 
-- Kokoro sounds distinctive but is heavy; on a mid-range CPU it is usable
-  mainly because of the cache, and new prose is slow.
-- Piper is dramatically faster for new text while keeping the same instant
-  cached echo, and offers far more voices and languages. For raw
-  responsiveness on CPU, Piper wins clearly.
-- Both beat the abandoned Sonata/Piper addon on responsiveness because of the
-  audio cache and idle warmup, which those addons do not have.
-
-## Extra Piper capabilities
-
-- In-app voice browser (Tools menu) listing the full HuggingFace piper-voices
-  catalog (~176 voices, dozens of languages, multiple quality tiers).
-- Direct download of any voice with md5 verification and resume.
-- Hear a demo of any voice BEFORE downloading, played through NVDA's audio via
-  a private helper (works regardless of the active synthesizer).
-- Multi-speaker voices exposed through the Variant setting.
+- Against Kokoro: Piper is roughly 10x faster per inference on this CPU while
+  keeping the same instant cached echo, and offers far more voices and
+  languages.
+- Against the Sonata family: the cache, the rate design, and the live catalog
+  are real advantages, and the lexicon addresses a limitation those add-ons
+  document but do not fix. Their advantages are maturity and translations,
+  both of which are time rather than architecture.

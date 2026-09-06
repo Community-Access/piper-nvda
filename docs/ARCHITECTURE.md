@@ -36,7 +36,7 @@ synthDrivers/piper/__init__.py             espeak-ng phonemization
 Package `addon/synthDrivers/piper/`.
 
 - `__init__.py` - the `SynthDriver`. Declares supported settings (voice,
-  variant/speaker, rate, rate boost, pitch, volume, GPU toggle), the set of
+  variant/speaker, rate, rate boost, pitch, volume, expressiveness), the set of
   speech commands it honors, and the notifications it fires. Its main job is
   `_build_job`, which turns an NVDA speech sequence (text interleaved with
   command objects) into a single SPEAK job of segments. Each segment records
@@ -100,16 +100,46 @@ Rust crate in `helper/`, built as `piper-helper.exe`.
 Synthesizing the same short text repeatedly is wasteful, and for a screen
 reader the same characters and words are spoken constantly. The helper keeps
 an LRU cache of raw model output, keyed on the voice model, character-mode
-flag, and text, but **not** on pitch, volume, or rate. Pitch and volume are
-applied as cheap DSP after the cache, and rate is applied entirely as
-post-cache time-stretch (the model always runs at its default speed). Because
-rate is not in the key, one cached entry is reused at every speech rate.
+flag, expressiveness, lexicon revision, and text, but **not** on pitch,
+volume, or rate. Pitch and volume are applied as cheap DSP after the cache,
+and rate is applied entirely as post-cache time-stretch (the model always runs
+at its default speed). Because rate is not in the key, one cached entry is
+reused at every speech rate.
+
+The two fields that do change model output are in the key for correctness, and
+scoped so they cost as little cache as possible. Expressiveness is a single
+setting the user rarely moves, and moving it re-warms in the background. The
+lexicon revision is folded in only for chunks that actually contain an
+overridden word, so adding one pronunciation entry invalidates the handful of
+chunks that use it rather than the whole cache.
 
 On startup and voice change the driver sends a LOAD_VOICE message. The helper
 then warms the alphabet and a curated list of common NVDA words for that voice
 during idle time only, yielding to any real speech. The cache is persisted to
 disk, so after the first session character echo and common announcements are
 instant immediately.
+
+## The pronunciation lexicon
+
+Piper voices are driven by phonemes, and the phonemes come from espeak-ng,
+which mispronounces names, acronyms, and loan words often enough to matter.
+Retraining a voice is not an option for a user, so the helper accepts a word
+to IPA map (`lexicon.rs`).
+
+Before a chunk is phonemized it is split into runs: overridden words become
+their IPA verbatim, and everything between them still goes through espeak-ng.
+The results are joined with spaces, which is how espeak already separates
+words in its own output, so prosody around the substitution is unaffected.
+The driver owns the file (`lexicon.json`) and pushes the whole map to the
+helper on connect, on helper restart, and whenever the user saves an edit.
+
+## Per-language voices
+
+Automatic language switching picks a voice for the language NVDA announces.
+`language_voices.json` maps a language to an explicit voice key, which the
+driver consults before falling back to the first installed voice for that
+language. Lookups fall back from `pt_br` to `pt`, and an assignment naming a
+voice that is no longer installed is ignored rather than failing to speak.
 
 ## Rate, pitch, and volume
 
@@ -120,6 +150,9 @@ instant immediately.
   the DSP pitch shifter. This is also what makes NVDA's capital-letter pitch
   change work.
 - **Volume**: scales the PCM.
+- **Expressiveness**: NVDA 0-100 maps to a 0.4x-1.6x multiplier on the
+  voice's trained `noise_scale` and `noise_w`. This is the one prosody control
+  that has to run through the model, so it is part of the cache key.
 
 ## Sample rate
 

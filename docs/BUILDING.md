@@ -41,8 +41,7 @@ cargo build --release
 ```
 
 Output: `helper/target/release/piper-helper.exe`. ONNX Runtime is linked in,
-so the exe runs on its own. `DirectML.dll` is produced beside it for the
-optional GPU path.
+so the exe runs on its own.
 
 Run it directly to sanity-check:
 
@@ -57,8 +56,8 @@ piper-helper.exe --model ../assets/lessac-medium.onnx --bench
 python tools/build.py
 ```
 
-This runs `cargo build --release`, stages the `addon/` tree, copies
-`piper-helper.exe`, `onnxruntime.dll`, `DirectML.dll`, and the espeak-ng
+This runs `cargo build --release`, stages the `addon/` tree, compiles the
+translations, copies `piper-helper.exe`, `onnxruntime.dll`, and the espeak-ng
 runtime into `synthDrivers/piper/bin/`, renders `doc/en/readme.html` from the
 Markdown, and writes `dist/piper-neural-<version>.nvda-addon`.
 
@@ -80,13 +79,28 @@ doc/en/readme.html
 synthDrivers/piper/*.py
 synthDrivers/piper/bin/piper-helper.exe
 synthDrivers/piper/bin/onnxruntime.dll
-synthDrivers/piper/bin/DirectML.dll
 synthDrivers/piper/bin/espeak-ng/libespeak-ng.dll
 synthDrivers/piper/bin/espeak-ng/espeak-ng-data/...
 globalPlugins/piperManager/__init__.py
+locale/<lang>/LC_MESSAGES/nvda.mo
 ```
 
-No `__pycache__`, `.pyc`, tests, or dev assets are included.
+No `__pycache__`, `.pyc`, tests, or dev assets are included, and neither are
+the `.po`/`.pot` translation sources: only the compiled `.mo` files ship.
+
+## Translations
+
+`tools/i18n.py` replaces `xgettext` and `msgfmt`, which are not normally
+installed on Windows. After changing any user-visible string:
+
+```
+python tools/i18n.py extract
+```
+
+That rewrites `addon/locale/nvda.pot`, which translators work from; a test
+fails if it is out of date. Packaging compiles every
+`addon/locale/<lang>/LC_MESSAGES/nvda.po` into the staged add-on
+automatically. See [TRANSLATING.md](TRANSLATING.md).
 
 ## Versioning
 

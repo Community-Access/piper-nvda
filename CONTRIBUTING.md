@@ -32,6 +32,10 @@ build --release`.
   `_download`, `_manager_ui`, `_paths`). Keep it that way.
 - Wrap user-facing strings in `_()` for translation, with a `# Translators:`
   comment above each describing its purpose, as the existing code does.
+- After changing any user-visible string run `python tools/i18n.py extract`
+  to refresh `addon/locale/nvda.pot`. A test fails when it is stale, since
+  translators work from that template. See
+  [docs/TRANSLATING.md](docs/TRANSLATING.md).
 - Never block NVDA's main thread. Inference is out-of-process; the driver's
   own work (protocol I/O, downloads) runs on background threads and marshals
   results back with `wx.CallAfter` or NVDA's notification system.
@@ -63,8 +67,12 @@ CI enforces it. Do not mix styles within a file.
 
 ## Rust (the helper)
 
-- Stable Rust, `x86_64-pc-windows-msvc`, `cargo fmt` before committing, and
+- Stable Rust, `x86_64-pc-windows-msvc`, rustfmt style for new code, and
   keep `cargo build` warning-clean.
+- Do not run `cargo fmt` across the crate. Several files lay data out by
+  hand (the warmup word list, for one) and reformatting them buries real
+  changes in noise. Write new code in rustfmt style instead; see
+  [docs/DECISIONS.md](docs/DECISIONS.md).
 - The synthesis worker is single-threaded on purpose (espeak-ng is not thread
   safe). Do not call espeak or the engine from other threads.
 - Errors that reach the user should be sent as ERROR/LOG protocol frames, not

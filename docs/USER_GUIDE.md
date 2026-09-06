@@ -65,9 +65,11 @@ change a value).
 - **Rate boost**: extends the top speed for people who read very fast.
 - **Pitch**: raises or lowers the voice.
 - **Volume**: loudness of the voice.
-- **Use GPU acceleration (DirectML)**: optional. If your graphics hardware
-  supports it, this can lower the delay for new text. If it is not supported,
-  the add-on falls back to the processor automatically.
+- **Expressiveness**: how much the voice varies its delivery. 50 is the
+  voice exactly as it was trained. Lower values are flatter and steadier,
+  which many people find easier to follow at high speed; higher values are
+  more animated. Changing this re-prepares the cached words in the
+  background, so echo stays instant.
 
 ## Automatic language switching
 
@@ -75,6 +77,49 @@ If you turn on "Automatic language switching" in NVDA's Speech settings, and a
 document marks its language, Piper will use a downloaded voice that matches
 that language when one is available. Download at least one voice per language
 you want this to work for.
+
+If you have more than one voice for a language, you can say which one to use.
+In the voice manager, press "Language voices", choose a language, and press
+"Change voice". Choosing "Automatic" goes back to picking the first installed
+voice for that language. An assignment for a language without a region (for
+example Portuguese) also covers its regional variants (Brazilian Portuguese)
+unless you assign those separately.
+
+## Fixing how a word is pronounced
+
+Neural voices work from phonemes, and the phonemes are guessed by espeak-ng.
+Names, acronyms, and words borrowed from other languages are the ones it
+usually gets wrong, and no amount of retraining on your side can fix that.
+
+In the voice manager, press "Pronunciations" to give a word the exact
+phonemes it should be spoken with:
+
+1. Press "Add", type the word, and type its pronunciation as IPA phonemes.
+   For example, NVDA is spoken correctly as `ɛnviːdiːˈeɪ`.
+2. Press "Preview" to hear the entry before you keep it.
+3. Press "Save".
+
+Entries apply to whole words only, so an entry for "read" never changes
+"reader". Matching ignores capitalization. This is separate from NVDA's own
+speech dictionaries, which replace text before it reaches the synthesizer;
+use a dictionary to change what is said, and this to change how it sounds.
+
+Entries take effect immediately, in every voice and language. They are stored
+in `lexicon.json` (see "Where files are stored"), so they can be backed up or
+shared as an ordinary file.
+
+## Using voices you already have
+
+If you have used another Piper-based add-on, its voices are ordinary Piper
+models and this add-on can reuse them instead of downloading them again. In
+the voice manager press "Import voices". Voices installed by Sonata Neural
+Voices and by Dengjen Neural Voices are found automatically. Check the ones
+you want and press "Import"; the files are copied, so the other add-on keeps
+working.
+
+"Install from file" installs a voice from a `.tar.gz` voice archive or from a
+`.onnx` model that has its `.onnx.json` file beside it. This is the way to
+install voices on a computer with no internet connection.
 
 ## How responsive it is
 
@@ -88,9 +133,15 @@ pressing a key) is immediate.
 
 ## Where files are stored
 
-Downloaded voices and the audio cache are stored in your NVDA user
-configuration folder, under a "piper" directory. They are kept there rather
-than inside the add-on so that updating the add-on never deletes your voices.
+Everything the add-on creates lives in your NVDA user configuration folder,
+under a "piper" directory, rather than inside the add-on, so that updating the
+add-on never deletes it:
+
+- `voices\` - the voices you downloaded or imported.
+- `cache\` - the prepared audio that makes echo instant.
+- `voices.json` - the catalog of downloadable voices.
+- `lexicon.json` - your pronunciation entries.
+- `language_voices.json` - your per-language voice assignments.
 
 ## Troubleshooting
 
@@ -100,9 +151,8 @@ than inside the add-on so that updating the add-on never deletes your voices.
 - **A demo does not play.** Some voices may not have a hosted sample. Try
   downloading the voice and selecting it as your synthesizer to hear it.
 - **Speech is delayed for new text on an older computer.** This is the neural
-  synthesis time. Try a "low" or "x_low" quality voice, which is faster, or
-  enable GPU acceleration if your hardware supports it. Character echo and
-  repeated words remain instant regardless.
+  synthesis time. Try a "low" or "x_low" quality voice, which is faster.
+  Character echo and repeated words remain instant regardless.
 - **NVDA warns the add-on was not tested with your NVDA version.** This
   appears when you run a newer NVDA than the add-on was last verified against.
   It is usually safe; check for an add-on update.

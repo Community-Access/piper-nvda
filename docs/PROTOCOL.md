@@ -30,10 +30,11 @@ Driver to helper:
 | 0x01  | HELLO        | `{version, role, modelLoaded}` (handshake) |
 | 0x02  | SPEAK        | a Speak job (below) |
 | 0x03  | CANCEL       | `{}` - drop all queued and in-flight work |
-| 0x04  | LOAD_VOICE   | `{voice}` - voice = absolute model path; triggers idle warmup |
+| 0x04  | LOAD_VOICE   | `{voice, variance}` - voice = absolute model path; triggers idle warmup at that expressiveness |
 | 0x05  | PING         | `{}` |
 | 0x06  | SHUTDOWN     | `{}` |
 | 0x07  | PLAY_SAMPLE  | `{path}` - decode and play an mp3 demo |
+| 0x08  | SET_LEXICON  | `{rev, entries}` - replace the pronunciation lexicon |
 
 Helper to driver:
 
@@ -61,7 +62,8 @@ Helper to driver:
       "volume": 0.9,
       "breakMsBefore": 0,
       "indexesBefore": [7],
-      "charMode": false
+      "charMode": false,
+      "variance": 1.0
     }
   ],
   "indexesAfter": [8]
@@ -81,6 +83,28 @@ Helper to driver:
   to this segment has played. `indexesAfter` fire after the whole utterance.
 - `charMode` true means "spell": the text is spoken as a single unit
   (letter/character), not split into clauses.
+- `variance` multiplies the model's trained noise scales (1.0 = as trained).
+  Unlike the other prosody fields it changes model output, so it is part of
+  the cache key.
+
+## The lexicon
+
+SET_LEXICON replaces the helper's pronunciation lexicon wholesale:
+
+```json
+{"rev": 3, "entries": {"nvda": "ɛnviːdiːˈeɪ"}}
+```
+
+- Keys are whole words, already lowercased by the driver; matching is
+  case-insensitive and never matches inside a longer word.
+- Values are IPA phonemes, used verbatim in place of what espeak-ng would
+  have produced for that word. The text around an overridden word is still
+  phonemized normally and the results are joined.
+- `rev` increases on every user edit. It is folded into the cache key of
+  chunks that contain an override, and only those, so editing the lexicon
+  does not throw away the rest of the warmed cache.
+- The message is applied ahead of any queued speech, and is not dropped by a
+  CANCEL, so an edit takes effect on the next utterance.
 
 ## Semantics and guarantees
 
