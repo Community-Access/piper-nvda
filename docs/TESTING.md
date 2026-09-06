@@ -48,6 +48,8 @@ without NVDA. Coverage:
   real wx, so this imports it against a permissive `wx` stub and checks every
   dialog is still there. It catches the failure that would otherwise only
   appear inside NVDA: a name used at module scope that no longer exists.
+- `test_catalog_download.py` also covers percent-encoding of the one
+  published voice whose name is not ASCII.
 - `test_i18n.py` - the translation pipeline: string extraction with
   translator comments, that the committed `.pot` matches the source, and a
   `.po` to `.mo` round trip read back through `gettext`, including that fuzzy
@@ -56,7 +58,12 @@ without NVDA. Coverage:
   real `_helperProc` and `_audio` classes: speaks a phrase and checks audio,
   ordered index markers, and DONE; plays a real demo mp3 through PLAY_SAMPLE;
   proves a lexicon entry changes the audio and that clearing it restores the
-  original; and proves expressiveness is cached separately. Skipped
+  original; proves expressiveness is cached separately; proves a
+  PhonemeCommand reaches the model as phonemes and falls back to its text
+  when the voice lacks one; proves the sentence pause lengthens gaps by the
+  requested amount; and proves a voice needing another phonemizer is refused
+  with `unsupportedVoice` and no audio, while still finishing so speech never
+  stalls. Skipped
   automatically if the release build or assets are missing.
 
 ## Latency benchmarks
@@ -107,6 +114,9 @@ Run through this matrix on each supported configuration:
 | Install from file | A `.tar.gz` archive and a `.onnx`+`.onnx.json` pair both install |
 | Expressiveness | Changing it audibly changes delivery, and echo stays instant once re-warmed |
 | Advanced parameters | Toggling "Show advanced voice parameters" swaps Expressiveness for the three raw parameters (reopening Speech settings if needed); each changes the voice; length scale above 50 slows the model |
+| Sentence pause | Raising it lengthens the gaps at full stops and, less, at commas; 0 removes them; gaps shrink as the rate rises |
+| Unsupported voice | Downloading zh_CN-xiao_ya-medium, he_IL-saspeech-medium, ja_JA-hi_fi_captain-medium, th_TH-tsync2-medium, or uk_UA-ukrainian_tts-medium explains why it cannot be used and does not download the model |
+| 16 kHz voice | A low-quality voice (for example en_GB-alan-low) sounds clean rather than harsh |
 | Rate boost | Very fast speech is intelligible |
 | Cancel | Arrow/keystroke interruption is immediate |
 | Uninstall | Uninstalls cleanly; prompts about deleting voices |

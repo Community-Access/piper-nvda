@@ -17,7 +17,7 @@ import os
 import shutil
 import tarfile
 
-from . import _paths
+from . import _paths, _phonemes
 
 #: Data directories other Piper add-ons install voices into, relative to the
 #: NVDA user config directory.
@@ -44,6 +44,12 @@ class ImportableVoice:
     @property
     def installed(self):
         return _paths.voice_installed(self.key)
+
+    @property
+    def supported(self):
+        """False for voices needing a phonemizer this add-on lacks. Another
+        add-on may be able to speak them; importing them here would not."""
+        return _phonemes.is_supported(self.config_path)
 
     @property
     def size(self):
@@ -123,7 +129,7 @@ def import_voices(voices, progress=None):
     `progress` is called as progress(done_count, total_count). Returns the
     list of keys actually imported.
     """
-    pending = [v for v in voices if not v.installed]
+    pending = [v for v in voices if not v.installed and v.supported]
     done = []
     for i, voice in enumerate(pending):
         import_voice(voice)
@@ -150,6 +156,12 @@ def _safe_members(archive):
         base = os.path.basename(name)
         if base.endswith(MODEL_SUFFIX) or base.endswith(CONFIG_SUFFIX):
             yield member, base
+
+
+def _check_supported(key, config_path):
+    phoneme_type = _phonemes.phoneme_type(config_path)
+    if phoneme_type not in _phonemes.SUPPORTED:
+        raise VoiceImportError(_phonemes.unsupported_message(key, phoneme_type))
 
 
 def install_from_archive(archive_path):
@@ -180,6 +192,12 @@ def install_from_archive(archive_path):
         _discard(models, configs)
         raise VoiceImportError("no voice model and configuration pair found")
     for key in keys:
+        try:
+            _check_supported(key, configs[key])
+        except VoiceImportError:
+            _discard(models, configs)
+            raise
+    for key in keys:
         os.replace(configs.pop(key), _paths.voice_config_path(key))
         os.replace(models.pop(key), _paths.voice_model_path(key))
     _discard(models, configs)
@@ -194,6 +212,7 @@ def install_from_model(model_path):
             "%s is missing next to the model"
             % os.path.basename(model_path + ".json"))
     key = _voice_key(model_path)
+    _check_supported(key, config_path)
     voice = ImportableVoice(key, "file", model_path, config_path)
     import_voice(voice)
     return [key]

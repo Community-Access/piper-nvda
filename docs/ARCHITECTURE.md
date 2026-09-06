@@ -120,6 +120,40 @@ during idle time only, yielding to any real speech. The cache is persisted to
 disk, so after the first session character echo and common announcements are
 instant immediately.
 
+## Phonemes
+
+Every voice config says how its phonemes were produced. Nearly all use
+espeak-ng, which the helper bundles, and the 47 voices trained before the
+field existed are espeak voices too. Two other cases exist:
+
+- `text`: the voice's phonemes are the code points of its own text, so no
+  phonemizer runs at all. The helper lowercases the chunk and feeds it
+  straight to the phoneme id map.
+- `pinyin`, `hebrew`, `japanese`, `thai`: a language-specific phonemizer this
+  helper does not include. Six published voices are in this group. Feeding
+  them espeak's IPA produces fluent nonsense rather than an error, so they are
+  refused: the driver will not download or list them, and the helper reports
+  `unsupportedVoice` if one reaches it anyway. Reading `phoneme_type` does not
+  load the model, so refusing costs nothing.
+
+Two further per-voice fields are honored, both rare but part of the Piper
+contract: `phoneme_map` substitutes one phoneme for a sequence of others
+before id lookup, and `inference.phoneme_silence` asks for silence after
+particular phonemes, which the helper produces by synthesizing around the gap
+rather than through it, as Piper does.
+
+## Pauses and silence
+
+Model output carries 20-80 ms of near-silence at each end. Cached entries are
+trimmed at both ends, so an entry is the sound alone, and the gaps between
+clauses are inserted deliberately rather than inherited from whatever the
+model generated. The length comes from the punctuation the chunk ends with:
+a full stop, question mark, or exclamation mark gets the user's sentence
+pause, and a comma, semicolon, or colon gets two fifths of it. Pauses are
+divided by the rate stretch, so they shrink as speech speeds up, and a pause
+is held over and emitted before the *next* chunk so an utterance never ends
+on silence.
+
 ## The pronunciation lexicon
 
 Piper voices are driven by phonemes, and the phonemes come from espeak-ng,
@@ -164,6 +198,14 @@ voice that is no longer installed is ignored rather than failing to speak.
 
 ## Sample rate
 
-Piper voices ship at different native sample rates (commonly 16000 or 22050
-Hz). The helper resamples every voice to a single 22050 Hz output so the
-NVDA-side `WavePlayer` can be created once and never has to change.
+Piper voices ship at different native sample rates: of the 176 published
+voices, 135 are 22050 Hz, 39 are 16000 Hz, and one is 44100 Hz. The helper
+resamples every voice to a single 22050 Hz output so the NVDA-side
+`WavePlayer` can be created once and never has to change.
+
+That conversion uses a windowed-sinc (Lanczos-3) resampler rather than linear
+interpolation, whose imaging and aliasing artefacts are audible as a harshness
+on the 40 voices that are not already at the output rate. The window widens
+when downsampling so the same filter does the anti-aliasing. Linear
+interpolation is still used inside the pitch shifter, where the read rate
+changes continuously and the cost would not buy much.

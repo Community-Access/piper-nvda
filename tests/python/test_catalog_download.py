@@ -131,3 +131,33 @@ def test_download_url_resumes(tmp_path):
     _download.download_url("http://x", dest, md5, len(data), opener=opener)
     assert captured["range"] == "bytes=1500-"
     assert open(dest, "rb").read() == data
+
+
+NON_ASCII_ENTRY = {
+    "key": "pt_PT-tug\u00e3o-medium",
+    "name": "tug\u00e3o",
+    "language": {"code": "pt_PT", "family": "pt", "region": "PT",
+                 "name_native": "Portugu\u00eas", "name_english": "Portuguese",
+                 "country_english": "Portugal"},
+    "quality": "medium",
+    "num_speakers": 1,
+    "speaker_id_map": {},
+    "files": {
+        "pt/pt_PT/tug\u00e3o/medium/pt_PT-tug\u00e3o-medium.onnx":
+            {"size_bytes": 100, "md5_digest": "a"},
+        "pt/pt_PT/tug\u00e3o/medium/pt_PT-tug\u00e3o-medium.onnx.json":
+            {"size_bytes": 10, "md5_digest": "b"},
+    },
+}
+
+
+def test_non_ascii_voice_urls_are_percent_encoded():
+    """One published voice has a non-ASCII name. urllib refuses to send a URL
+    with raw non-ASCII in it, so the voice was undownloadable."""
+    v = _catalog.Voice("pt_PT-tug\u00e3o-medium", NON_ASCII_ENTRY)
+    for url in (v.model_url, v.config_url, v.sample_url(0)):
+        assert url.isascii(), url
+        # The path separators must survive encoding.
+        assert "/pt/pt_PT/" in url
+        url.encode("ascii")  # what urllib does; used to raise
+    assert "tug%C3%A3o" in v.model_url

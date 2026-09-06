@@ -7,12 +7,23 @@ for each voice's model, config, and demo sample.
 import hashlib
 import json
 import os
+import urllib.parse
 import urllib.request
 
 from . import _paths
 
 HF_BASE = "https://huggingface.co/rhasspy/piper-voices/resolve/main/"
 CATALOG_URL = HF_BASE + "voices.json"
+
+
+def file_url(relative_path):
+    """Absolute download URL for a path from the catalog.
+
+    Catalog paths carry the voice's own name, which is not always ASCII
+    (`pt_PT-tug\u00e3o-medium`). `urllib` refuses to send a non-ASCII URL, so
+    percent-encode the path while leaving the separators alone.
+    """
+    return HF_BASE + urllib.parse.quote(relative_path, safe="/")
 
 
 class Voice:
@@ -55,16 +66,16 @@ class Voice:
 
     @property
     def model_url(self):
-        return HF_BASE + self.model_rel
+        return file_url(self.model_rel)
 
     @property
     def config_url(self):
-        return HF_BASE + self.config_rel
+        return file_url(self.config_rel)
 
     def sample_url(self, speaker=0):
         # samples live next to the model: <dir>/samples/speaker_<n>.mp3
         model_dir = self.model_rel.rsplit("/", 1)[0]
-        return HF_BASE + "%s/samples/speaker_%d.mp3" % (model_dir, speaker)
+        return file_url("%s/samples/speaker_%d.mp3" % (model_dir, speaker))
 
     @property
     def installed(self):

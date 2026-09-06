@@ -97,6 +97,17 @@ pub struct Segment {
     pub char_mode: bool,
     #[serde(default)]
     pub scales: Scales,
+    /// True when `text` is already IPA and must not be phonemized. NVDA's
+    /// PhonemeCommand carries a pronunciation the caller wants used verbatim.
+    #[serde(default)]
+    pub ipa: bool,
+    /// Text to speak instead when `ipa` produced nothing the voice knows.
+    #[serde(default)]
+    pub fallback_text: String,
+    /// Silence to insert after a sentence, in milliseconds before the rate
+    /// stretch is applied. Clause endings get a shorter share of it.
+    #[serde(default)]
+    pub sentence_pause_ms: u32,
 }
 
 fn one() -> f32 {
@@ -269,6 +280,9 @@ mod tests {
         assert_eq!(speak.segments[0].scales.noise_w, 1.0);
         assert_eq!(speak.segments[0].sid, 0);
         assert!(!speak.segments[0].char_mode);
+        assert!(!speak.segments[0].ipa);
+        assert_eq!(speak.segments[0].fallback_text, "");
+        assert_eq!(speak.segments[0].sentence_pause_ms, 0);
         assert_eq!(speak.indexes_after, vec![4]);
     }
 

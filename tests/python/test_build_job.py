@@ -8,7 +8,7 @@ import synthDrivers.piper as piper
 from synthDrivers.piper import _paths, _voices
 from speech.commands import (
     BreakCommand, CharacterModeCommand, IndexCommand, LangChangeCommand,
-    PitchCommand, RateCommand,
+    PhonemeCommand, PitchCommand, RateCommand,
 )
 
 
@@ -36,6 +36,7 @@ def driver():
     d._rateBoost = False
     d._variant = "0"
     d._variance = 50
+    d._sentencePause = 25
     d._advancedMode = False
     d._noiseScale = 50
     d._noiseW = 50
@@ -182,3 +183,35 @@ def test_assignment_to_a_missing_voice_is_ignored(driver):
     driver._lang_voices = {"fr_fr": "fr_FR-uninstalled-low"}
     seg = driver._build_job([LangChangeCommand("fr_FR"), "bonjour"])["segments"][0]
     assert seg["modelPath"].endswith("fr_FR-siwis-medium.onnx")
+
+
+def test_phoneme_command_is_sent_as_phonemes(driver):
+    job = driver._build_job(["say ", PhonemeCommand("t\u0259\u02c8me\u026ato\u028a",
+                                                    text="tomato"), " now"])
+    kinds = [(seg["text"], seg["ipa"]) for seg in job["segments"]]
+    assert kinds == [("say ", False),
+                     ("t\u0259\u02c8me\u026ato\u028a", True),
+                     (" now", False)]
+    phoneme_segment = job["segments"][1]
+    # The word it stood for travels with it, for a voice missing a phoneme.
+    assert phoneme_segment["fallbackText"] == "tomato"
+    # Prosody and voice still come from the surrounding speech.
+    assert phoneme_segment["modelPath"] == job["segments"][0]["modelPath"]
+    assert phoneme_segment["volume"] == job["segments"][0]["volume"]
+
+
+def test_phoneme_command_without_ipa_speaks_its_text(driver):
+    job = driver._build_job([PhonemeCommand("", text="tomato")])
+    assert [(s["text"], s["ipa"]) for s in job["segments"]] == [("tomato", False)]
+
+
+def test_phoneme_command_with_nothing_at_all_is_dropped(driver):
+    assert driver._build_job([PhonemeCommand("", text=None)])["segments"] == []
+
+
+def test_sentence_pause_reaches_the_segment(driver):
+    assert driver._build_job(["hi"])["segments"][0]["sentencePauseMs"] == 100
+    driver._sentencePause = 0
+    assert driver._build_job(["hi"])["segments"][0]["sentencePauseMs"] == 0
+    driver._sentencePause = 100
+    assert driver._build_job(["hi"])["segments"][0]["sentencePauseMs"] == 400

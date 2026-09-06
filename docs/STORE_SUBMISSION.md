@@ -80,12 +80,12 @@ The submission form computes the SHA256 for you, so you do not normally paste
 it by hand. To verify the file yourself:
 
 ```
-certutil -hashfile dist\piper-neural-0.3.0.nvda-addon SHA256
+certutil -hashfile dist\piper-neural-0.4.0.nvda-addon SHA256
 ```
 
 ## Step 3: publish the file
 
-Create a GitHub release (tag it, e.g. `v0.3.0`) and attach the
+Create a GitHub release (tag it, e.g. `v0.4.0`) and attach the
 `.nvda-addon` as a release asset. Copy its direct download URL. It must:
 
 - start with `https://`,
@@ -109,7 +109,7 @@ against your manifest, so they must agree:
 | `addonId` | manifest `name` (e.g. `piperNeural`) |
 | `channel` | `stable`, `beta`, or `dev` (see the beta/alpha rule above) |
 | `addonVersionNumber` | `{major, minor, patch}` matching the manifest version |
-| `addonVersionName` | the version string, e.g. `0.3.0` |
+| `addonVersionName` | the version string, e.g. `0.4.0` |
 | `displayName` | must match manifest `summary` |
 | `publisher` | you or your organization |
 | `description` | the store description |
@@ -160,7 +160,7 @@ this repository generates is the file to upload.
 
 ## Readiness before the first store submission
 
-Known gaps at 0.3.0, none of which block a GitHub release but all of which are
+Known gaps at 0.4.0, none of which block a GitHub release but all of which are
 worth closing before asking users to depend on the add-on:
 
 - **No completed translations.** The pipeline, the template, and the

@@ -1,6 +1,7 @@
 """End-to-end test of the Piper Python plumbing against the real helper:
 speaking a phrase and playing a demo mp3. Skipped if build/assets missing."""
 
+import json
 import os
 import threading
 
@@ -120,12 +121,15 @@ class _Session:
     def __init__(self):
         self.player = RecordingPlayer()
         self.done = threading.Event()
+        self.errors = []
         self.pump = _audio.AudioPump(self.player, lambda i: None, self.done.set)
         hello = threading.Event()
 
         def on_frame(mt, payload):
             if mt == proto.HELLO:
                 hello.set()
+            elif mt == proto.ERROR:
+                self.errors.append(proto.parse_json(payload))
             elif mt in (proto.AUDIO, proto.MARKER, proto.DONE):
                 self.pump.handle_frame(mt, payload)
 
@@ -196,3 +200,78 @@ def test_inference_parameters_are_cached_separately():
         assert session.say("Testing expressiveness.") == default
     finally:
         session.close()
+
+
+def test_phoneme_command_audio_differs_from_the_text():
+    """A pronunciation sent as phonemes must reach the model as phonemes."""
+    session = _Session()
+    try:
+        spoken = session.say("tomato")
+        as_phonemes = session.say("təˈmɑːtoʊ", ipa=True)
+        assert spoken and as_phonemes
+        assert as_phonemes != spoken
+
+        # Phonemes the voice does not have fall back to the word they stood
+        # for, rather than going silent. The model is stochastic, so compare
+        # duration rather than bytes.
+        fallback = session.say("███", ipa=True,
+                               fallbackText="tomato")
+        assert fallback
+        assert abs(len(fallback) - len(spoken)) < len(spoken) * 0.3, (
+            len(spoken), len(fallback))
+
+        # Without a fallback the same unknown phonemes produce nothing.
+        assert session.say("████", ipa=True) == b""
+    finally:
+        session.close()
+
+
+def test_sentence_pause_lengthens_the_gap_between_sentences():
+    session = _Session()
+    try:
+        text = "One. Two. Three."
+        tight = session.say(text, sentencePauseMs=0)
+        spaced = session.say(text, sentencePauseMs=400)
+        assert tight and spaced
+        # Two sentence boundaries at 400 ms each, at 22050 Hz, 16-bit mono.
+        expected = 2 * int(0.4 * 22050) * 2
+        assert abs((len(spaced) - len(tight)) - expected) < expected * 0.1, (
+            len(tight), len(spaced))
+    finally:
+        session.close()
+
+
+def test_a_voice_needing_another_phonemizer_is_refused():
+    """Six published voices are not phonemized by espeak. Feeding them
+    espeak's IPA would produce confident nonsense, so the helper refuses."""
+    voice_dir = os.path.join(ROOT, "build", "test_voices")
+    os.makedirs(voice_dir, exist_ok=True)
+    fake_model = os.path.join(voice_dir, "fake-pinyin.onnx")
+    # The model itself is never opened: refusing a voice must not cost a
+    # model load, so an empty file is enough to prove the config decided.
+    with open(fake_model, "wb") as f:
+        f.write(b"")
+    with open(MODEL + ".json", encoding="utf-8") as f:
+        config = json.load(f)
+    config["phoneme_type"] = "pinyin"
+    with open(fake_model + ".json", "w", encoding="utf-8") as f:
+        json.dump(config, f)
+
+    session = _Session()
+    try:
+        session.done.clear()
+        session.helper.send(proto.SPEAK, {
+            "utteranceId": 1,
+            "segments": [{"text": "ni hao", "modelPath": fake_model}],
+            "indexesAfter": [],
+        })
+        # It still finishes, so speech never stalls.
+        assert session.done.wait(60)
+        assert session.player.audio == b""
+        assert any(e.get("code") == "unsupportedVoice" for e in session.errors),             session.errors
+        assert any("pinyin" in e.get("message", "") for e in session.errors)
+    finally:
+        session.close()
+        for path in (fake_model, fake_model + ".json"):
+            if os.path.exists(path):
+                os.remove(path)

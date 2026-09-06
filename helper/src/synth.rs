@@ -2,7 +2,7 @@
 //! engine keeps a small LRU of loaded voice sessions to bound memory while
 //! avoiding reloads on the hot path.
 
-use crate::config::VoiceConfig;
+use crate::config::{self, PhonemeType, VoiceConfig};
 use crate::protocol::Scales;
 use anyhow::{anyhow, Context, Result};
 use ort::session::builder::GraphOptimizationLevel;
@@ -92,6 +92,17 @@ impl Engine {
         Ok(self.voices[model_path].config.espeak_voice.clone())
     }
 
+    /// How this voice's phonemes are produced.
+    ///
+    /// Reads the configuration alone when the voice is not already loaded, so
+    /// a voice this helper cannot speak is refused without loading its model.
+    pub fn phoneme_type(&self, model_path: &Path) -> Result<PhonemeType> {
+        if let Some(loaded) = self.voices.get(model_path) {
+            return Ok(loaded.config.phoneme_type.clone());
+        }
+        config::phoneme_type_of(&config_path_for(model_path))
+    }
+
     /// Synthesize IPA phonemes with the given model. NVDA's rate is applied
     /// later as post-cache time-stretch, so `scales.length_scale` is a
     /// deliberate extra control rather than the rate setting, and stays at
@@ -109,43 +120,67 @@ impl Engine {
         let loaded = self.voices.get_mut(model_path).unwrap();
         loaded.used = clock;
 
-        let (ids, matched) = loaded.config.phonemes_to_ids(ipa);
-        if matched == 0 {
+        // A voice can ask for silence after particular phonemes. Piper
+        // handles that by synthesizing around the silence rather than through
+        // it, so the model never sees the gap; do the same. Voices without
+        // `phoneme_silence`, which is nearly all of them, get one part and
+        // one model run.
+        let sample_rate = loaded.config.sample_rate;
+        let parts = loaded.config.split_on_silence(ipa);
+        let mut samples: Vec<f32> = Vec::new();
+        let mut matched_total = 0usize;
+        for (phonemes, silence_seconds) in parts {
+            let (ids, matched) = loaded.config.phonemes_to_ids(&phonemes);
+            if matched > 0 {
+                matched_total += matched;
+                samples.extend(run_model(loaded, ids, sid, scales)?);
+            }
+            if silence_seconds > 0.0 && matched_total > 0 {
+                let count = (silence_seconds * sample_rate as f32) as usize;
+                samples.extend(std::iter::repeat_n(0.0f32, count));
+            }
+        }
+        if matched_total == 0 {
             return Ok(None);
         }
-        let n = ids.len();
-        let clamp = |value: f32| value.clamp(0.0, 2.0);
-        let scales = vec![
-            loaded.config.noise_scale * clamp(scales.noise_scale),
-            loaded.config.length_scale * clamp(scales.length_scale),
-            loaded.config.noise_w * clamp(scales.noise_w),
-        ];
-        let input = ort_err(Tensor::from_array(([1usize, n], ids)))?;
-        let input_lengths = ort_err(Tensor::from_array(([1usize], vec![n as i64])))?;
-        let scales_t = ort_err(Tensor::from_array(([3usize], scales)))?;
-
-        let outputs = if loaded.has_sid {
-            let sid_t = ort_err(Tensor::from_array(([1usize], vec![sid])))?;
-            ort_err(loaded.session.run(ort::inputs![
-                "input" => input,
-                "input_lengths" => input_lengths,
-                "scales" => scales_t,
-                "sid" => sid_t,
-            ]))?
-        } else {
-            ort_err(loaded.session.run(ort::inputs![
-                "input" => input,
-                "input_lengths" => input_lengths,
-                "scales" => scales_t,
-            ]))?
-        };
-        let (_, data) = ort_err(outputs[0].try_extract_tensor::<f32>())
-            .context("extracting model output")?;
         Ok(Some(Synth {
-            samples: data.to_vec(),
-            sample_rate: loaded.config.sample_rate,
+            samples,
+            sample_rate,
         }))
     }
+}
+
+/// One model run over an already-built id sequence.
+fn run_model(loaded: &mut Loaded, ids: Vec<i64>, sid: i64, scales: Scales) -> Result<Vec<f32>> {
+    let n = ids.len();
+    let clamp = |value: f32| value.clamp(0.0, 2.0);
+    let model_scales = vec![
+        loaded.config.noise_scale * clamp(scales.noise_scale),
+        loaded.config.length_scale * clamp(scales.length_scale),
+        loaded.config.noise_w * clamp(scales.noise_w),
+    ];
+    let input = ort_err(Tensor::from_array(([1usize, n], ids)))?;
+    let input_lengths = ort_err(Tensor::from_array(([1usize], vec![n as i64])))?;
+    let scales_t = ort_err(Tensor::from_array(([3usize], model_scales)))?;
+
+    let outputs = if loaded.has_sid {
+        let sid_t = ort_err(Tensor::from_array(([1usize], vec![sid])))?;
+        ort_err(loaded.session.run(ort::inputs![
+            "input" => input,
+            "input_lengths" => input_lengths,
+            "scales" => scales_t,
+            "sid" => sid_t,
+        ]))?
+    } else {
+        ort_err(loaded.session.run(ort::inputs![
+            "input" => input,
+            "input_lengths" => input_lengths,
+            "scales" => scales_t,
+        ]))?
+    };
+    let (_, data) = ort_err(outputs[0].try_extract_tensor::<f32>())
+        .context("extracting model output")?;
+    Ok(data.to_vec())
 }
 
 /// `foo.onnx` -> `foo.onnx.json`.

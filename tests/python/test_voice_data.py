@@ -7,7 +7,15 @@ import tarfile
 
 import pytest
 
-from synthDrivers.piper import _import, _langvoices, _lexicon, _paths
+from synthDrivers.piper import (
+    _download,
+    _import,
+    _langvoices,
+    _lexicon,
+    _paths,
+    _phonemes,
+    _voices,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -17,15 +25,17 @@ def data_dir(tmp_path, monkeypatch):
     return tmp_path
 
 
-def _make_voice(directory, key, model_name=None):
+def _make_voice(directory, key, model_name=None, phoneme_type=None):
     """Write a minimal voice (model plus config) into `directory`."""
     os.makedirs(directory, exist_ok=True)
     model = os.path.join(directory, (model_name or key) + ".onnx")
     with open(model, "wb") as f:
         f.write(b"onnx-model-bytes")
+    config = {"audio": {"sample_rate": 22050}, "espeak": {"voice": "en-us"}}
+    if phoneme_type is not None:
+        config["phoneme_type"] = phoneme_type
     with open(model + ".json", "w", encoding="utf-8") as f:
-        json.dump({"audio": {"sample_rate": 22050},
-                   "espeak": {"voice": "en-us"}}, f)
+        json.dump(config, f)
     return model
 
 
@@ -177,3 +187,110 @@ def test_unsupported_file_type_is_rejected(tmp_path):
     other.write_bytes(b"x")
     with pytest.raises(_import.VoiceImportError):
         _import.install_from_file(str(other))
+
+
+# -- voices needing a phonemizer we do not bundle --------------------------
+
+def test_phoneme_type_defaults_to_espeak(tmp_path):
+    # 47 published voices predate the field, and all of them are espeak.
+    model = _make_voice(str(tmp_path), "old_voice")
+    assert _phonemes.phoneme_type(model + ".json") == "espeak"
+    assert _phonemes.is_supported(model + ".json")
+
+
+def test_phoneme_type_reads_the_config(tmp_path):
+    model = _make_voice(str(tmp_path), "zh_voice", phoneme_type="pinyin")
+    assert _phonemes.phoneme_type(model + ".json") == "pinyin"
+    assert not _phonemes.is_supported(model + ".json")
+    # Code-point voices need no phonemizer at all, so they are supported.
+    text_model = _make_voice(str(tmp_path), "uk_voice", phoneme_type="text")
+    assert _phonemes.is_supported(text_model + ".json")
+
+
+def test_phoneme_type_survives_a_damaged_config(tmp_path):
+    bad = tmp_path / "bad.onnx.json"
+    bad.write_text("{not json", encoding="utf-8")
+    assert _phonemes.phoneme_type(str(bad)) == "espeak"
+    assert _phonemes.phoneme_type(str(tmp_path / "missing.json")) == "espeak"
+
+
+def test_unsupported_voices_are_not_offered_as_installed(tmp_path):
+    _make_voice(_paths.voices_dir(), "en_US-lessac-medium")
+    _make_voice(_paths.voices_dir(), "zh_CN-xiao_ya-medium",
+                phoneme_type="pinyin")
+    keys = [v.key for v in _voices.load_installed()]
+    assert keys == ["en_US-lessac-medium"]
+
+
+def test_unsupported_voices_are_not_imported(tmp_path):
+    config = tmp_path / "config"
+    _make_voice(str(config / "sonata" / "voices" / "piper" / "th_TH-tsync2-medium"),
+                "th_TH-tsync2-medium", phoneme_type="thai")
+    found = _import.discover(str(config))
+    assert len(found) == 1 and not found[0].supported
+    assert _import.import_voices(found) == []
+    assert not _paths.voice_installed("th_TH-tsync2-medium")
+
+
+def test_unsupported_archive_is_rejected(tmp_path):
+    source = tmp_path / "src"
+    model = _make_voice(str(source), "he_IL-saspeech-medium",
+                        phoneme_type="hebrew")
+    archive = tmp_path / "voice.tar.gz"
+    with tarfile.open(archive, "w:gz") as tar:
+        tar.add(model, arcname="he_IL-saspeech-medium.onnx")
+        tar.add(model + ".json", arcname="he_IL-saspeech-medium.onnx.json")
+
+    with pytest.raises(_import.VoiceImportError):
+        _import.install_from_file(str(archive))
+    assert not _paths.voice_installed("he_IL-saspeech-medium")
+    # Nothing half-extracted is left behind.
+    assert os.listdir(_paths.voices_dir()) == []
+
+
+def test_unsupported_model_file_is_rejected(tmp_path):
+    model = _make_voice(str(tmp_path / "downloads"), "ja_JA-hi_fi_captain-medium",
+                        phoneme_type="japanese")
+    with pytest.raises(_import.VoiceImportError):
+        _import.install_from_file(model)
+
+
+def test_download_checks_the_config_before_fetching_the_model(tmp_path):
+    """The config is small and says which phonemizer the voice needs, so an
+    unusable voice must be refused before its model is downloaded."""
+    requested = []
+
+    class Voice:
+        key = "zh_CN-xiao_ya-medium"
+        name = "xiao_ya"
+        model_url = "http://example/model.onnx"
+        config_url = "http://example/model.onnx.json"
+        model_md5 = None
+        config_md5 = None
+        model_size = 60_000_000
+
+    config = json.dumps({"audio": {"sample_rate": 22050},
+                         "espeak": {"voice": "cmn"},
+                         "phoneme_type": "pinyin"}).encode("utf-8")
+
+    class Response:
+        def __init__(self, data):
+            self._data = data
+            self.status = 200
+            self.headers = {"Content-Length": str(len(data))}
+
+        def read(self, n):
+            data, self._data = self._data[:n], self._data[n:]
+            return data
+
+    def opener(request):
+        url = getattr(request, "full_url", request)
+        requested.append(url)
+        return Response(config if url.endswith(".json") else b"x" * 100)
+
+    with pytest.raises(_download.UnsupportedVoice) as excinfo:
+        _download.download_voice(Voice(), opener=opener)
+    assert "xiao_ya" in str(excinfo.value)
+    assert requested == ["http://example/model.onnx.json"]
+    assert not os.path.isfile(_paths.voice_config_path(Voice.key))
+    assert not os.path.isfile(_paths.voice_model_path(Voice.key))

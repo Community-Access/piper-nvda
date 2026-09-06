@@ -11,7 +11,7 @@ add-on that shares this project's architecture.
 | [Sonata Neural Voices](https://github.com/mush42/sonata-nvda) | Last release v3.1.0, June 2024 | Rust `sonata` engine over gRPC, ONNX Runtime, espeak-ng |
 | [Dengjen Neural Voices](https://github.com/OnjLouis/dengjen-nvda) | Maintained fork of Sonata; documents NVDA 2025.1 through 2026.1 | Same engine, kept building against current NVDA |
 | [rmcpantoja/piper-nvda](https://github.com/rmcpantoja/piper-nvda) | Separate Piper driver | Piper |
-| This add-on | 0.3.0 | Rust helper over stdio, ONNX Runtime, espeak-ng |
+| This add-on | 0.4.0 | Rust helper over stdio, ONNX Runtime, espeak-ng |
 
 Sonata is the original and is no longer released; Dengjen is the version to
 compare against, and is the one this document means whenever it says "the
@@ -85,6 +85,17 @@ These follow from the design rather than from a benchmark:
   voices may exhibit incorrect or weird pronunciation".
 - **Per-language voice assignment.** With several voices for one language, you
   choose which one automatic language switching uses.
+- **Complete NVDA synth API.** Every synth-facing command NVDA defines is
+  implemented, including `PhonemeCommand`, so a pronunciation NVDA supplies is
+  spoken as given rather than falling back to its plain text.
+- **Voices it cannot speak are refused.** Six published voices declare a
+  phonemizer no NVDA Piper add-on bundles. This add-on reads `phoneme_type`
+  and explains the problem before downloading the model, rather than
+  synthesizing them from the wrong phonemes.
+- **Punctuation-timed pauses.** Model output is trimmed at both ends and the
+  gaps between clauses are inserted deliberately, with a user setting, so
+  rhythm does not depend on how much silence each model run happened to
+  produce.
 - **Simple by default, precise on request.** One Expressiveness control by
   default; "Show advanced voice parameters" swaps it for `noise_scale`,
   `noise_w`, and `length_scale` under the names Piper uses, so users coming
@@ -99,6 +110,20 @@ These follow from the design rather than from a benchmark:
 - **Translations.** Sonata ships many locales and translated documentation.
   This add-on has the extraction pipeline and a template, and no completed
   translations yet.
+
+## Fidelity details
+
+Both projects run the same models, so audio quality differences come from what
+happens around them:
+
+- 40 of the 176 voices are not at 22050 Hz (39 at 16 kHz, one at 44.1 kHz).
+  This add-on resamples them with a windowed sinc rather than linear
+  interpolation, which is audible on exactly those voices.
+- `phoneme_map` and `inference.phoneme_silence`, two rarely used per-voice
+  fields in the Piper contract, are honored.
+- The one published voice whose name is not ASCII (`pt_PT-tugão-medium`) is
+  downloadable; a raw non-ASCII URL is rejected by Python's `urllib` before it
+  is ever sent.
 
 ## Switching cost
 

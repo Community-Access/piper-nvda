@@ -27,6 +27,14 @@ class BreakCommand:
         self.time = time
 
 
+class PhonemeCommand:
+    """A pronunciation given as IPA, with the text it replaces."""
+
+    def __init__(self, ipa, text=None):
+        self.ipa = ipa
+        self.text = text
+
+
 class _Prosody:
     def __init__(self, newValue=50):
         self.newValue = newValue

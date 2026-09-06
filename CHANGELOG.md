@@ -3,6 +3,46 @@
 All notable changes to this add-on are documented here. This project follows
 [Semantic Versioning](https://semver.org): major.minor.patch.
 
+## [0.4.0] - 2026-09-06
+
+### Fixed
+- Six published voices declare a language-specific phonemizer this add-on does
+  not include (two Chinese voices want pinyin; one each for Hebrew, Japanese,
+  and Thai). They were being synthesized from espeak's IPA, which produces
+  fluent nonsense rather than an error. The voice configuration is now read
+  before the model is downloaded, unusable voices are explained and refused,
+  already-installed ones are left out of the voice list, and the helper
+  reports `unsupportedVoice` rather than speaking.
+- `pt_PT-tugão-medium` could not be downloaded or auditioned at all: its
+  catalog path is not ASCII, and Python's `urllib` refuses such a URL before
+  sending it. Catalog paths are now percent-encoded.
+- Voice-level `phoneme_map` substitutions were ignored. Piper applies them
+  before phoneme ids are looked up; now so do we.
+- `inference.phoneme_silence` was ignored. Voices asking for silence after
+  particular phonemes now get it, synthesized around the gap as Piper does.
+
+### Added
+- Support for NVDA's `PhonemeCommand`, the one synth-facing command in NVDA's
+  API that was missing. A pronunciation NVDA supplies is spoken as given, and
+  falls back to the text it stood for if the voice has no sound for one of the
+  phonemes.
+- A "Pause between sentences" setting. Model output is now trimmed at both
+  ends and the gaps between clauses are inserted deliberately: the full pause
+  after `.`, `!`, `?` and two fifths of it after `,`, `;`, `:`. Pauses shorten
+  with the rate, and never trail the end of an utterance.
+- `helper/examples/model_io.rs`, which prints a model's ONNX inputs and
+  outputs. It is what establishes that the published models expose audio only,
+  with no durations or alignments, so word-level timing is not available
+  without re-exporting every voice.
+
+### Changed
+- Sample-rate conversion uses a Lanczos-3 windowed-sinc resampler instead of
+  linear interpolation. 40 of the 176 published voices are not at the output
+  rate, and linear interpolation was audibly harsh on them.
+- The audio cache stores trimmed entries and its format version is 2, so
+  caches written by earlier versions are discarded and rebuilt.
+- Protocol segments carry `ipa`, `fallbackText`, and `sentencePauseMs`.
+
 ## [0.3.0] - 2026-09-06
 
 ### Added

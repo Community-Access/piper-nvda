@@ -43,7 +43,7 @@ Helper to driver:
 | 0x81  | AUDIO  | binary: header length (u16 LE), JSON `{utteranceId, seq}`, raw i16 LE PCM |
 | 0x82  | MARKER | `{utteranceId, index}` - emitted in-stream at an index position |
 | 0x83  | DONE   | `{utteranceId}` |
-| 0x84  | ERROR  | `{code, message}` |
+| 0x84  | ERROR  | `{code, message}`; `code` is `unsupportedVoice` when the voice needs a phonemizer the helper does not include |
 | 0x85  | PONG   | `{}` |
 | 0x86  | LOG    | `{level, message}` |
 
@@ -63,7 +63,10 @@ Helper to driver:
       "breakMsBefore": 0,
       "indexesBefore": [7],
       "charMode": false,
-      "scales": {"noiseScale": 1.0, "lengthScale": 1.0, "noiseW": 1.0}
+      "scales": {"noiseScale": 1.0, "lengthScale": 1.0, "noiseW": 1.0},
+      "ipa": false,
+      "fallbackText": "",
+      "sentencePauseMs": 100
     }
   ],
   "indexesAfter": [8]
@@ -88,6 +91,16 @@ Helper to driver:
   fields these change model output, so they are part of the cache key. Note
   that `lengthScale` is not the rate setting: rate is carried entirely by
   `stretch`.
+- `ipa` true means `text` is already phonemes and must not be phonemized,
+  which is how NVDA's PhonemeCommand is carried. Such a segment is never
+  split into clauses and never has lexicon overrides applied to it.
+- `fallbackText` is spoken instead when an `ipa` segment produced no phonemes
+  the voice knows, so an unknown phoneme degrades to the word rather than to
+  silence.
+- `sentencePauseMs` is the silence inserted after a sentence, before the rate
+  stretch is applied; clause endings get two fifths of it. It is not part of
+  the cache key, because the pause goes between cached chunks rather than
+  inside one.
 
 ## The lexicon
 

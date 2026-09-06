@@ -26,6 +26,8 @@ remove voices.
 - Pitch and Volume.
 - Expressiveness: how much the voice varies its delivery. 50 is the voice as
   trained; lower is flatter and steadier, higher is more animated.
+- Pause between sentences: silence after a sentence; clause endings get a
+  shorter share of it, and pauses shorten with the rate.
 - Show advanced voice parameters: replaces Expressiveness with Piper's own
   noise scale, noise W, and length scale, each as a percentage of the voice's
   trained value (50 = as trained). Reopen Speech settings after toggling it.
@@ -43,6 +45,11 @@ rate. The cache is saved between sessions.
 Voices come from the Piper voices project and cover dozens of languages at
 several quality levels (x_low, low, medium, high). Downloaded voices are
 stored in your NVDA user configuration folder, so they survive addon updates.
+
+A few published voices (Hebrew, Japanese, Thai, Ukrainian, and two Chinese
+voices) were built with a language-specific text processor this add-on does
+not include. They are refused before download rather than spoken as noise;
+other voices in those languages work normally.
 
 The voice manager can also reuse voices you already have. "Import voices"
 finds voices installed by the Sonata and Dengjen add-ons and copies them in,

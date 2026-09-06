@@ -132,6 +132,64 @@ driver attempts a live refresh first and says so when it cannot.
 rate control and is not one. Rate is a post-cache time-stretch and is free;
 `length_scale` changes model output and re-warms the cache.
 
+## Voices we cannot phonemize are refused, not approximated
+
+**Context.** A voice config declares `phoneme_type`. Six of the 176 published
+voices name a phonemizer this add-on does not bundle: two Chinese voices want
+pinyin, and there is one each for Hebrew, Japanese, and Thai. A model trained
+on those symbols still runs happily on espeak's IPA and still produces fluent
+speech; the speech is simply wrong.
+
+**Decision.** Read `phoneme_type` and refuse. The configuration is downloaded
+before the model, so an unusable voice costs a few kilobytes rather than tens
+of megabytes; already-installed ones are left out of the voice list; and the
+helper reports `unsupportedVoice` and stays silent if one reaches it anyway.
+Reading the type does not load the model.
+
+**Consequences.** A user gets an explanation instead of nonsense, and other
+voices in the same languages still work. The cost is that adding one of those
+phonemizers later is the only way to support those six voices; nothing here
+gets us closer to it. `text` voices, whose phonemes are their own code points,
+need no phonemizer and are supported directly.
+
+## Gaps between clauses are inserted, not inherited
+
+**Context.** Every model run carries 20-80 ms of near-silence at each end.
+Speaking clause by clause, as streaming requires, meant every clause boundary
+got two of those, so the rhythm of a sentence depended on how much silence the
+model happened to generate at each join.
+
+**Decision.** Trim both ends of every chunk before caching, then insert a
+pause chosen from the punctuation the chunk ends with: the user's sentence
+pause for `.`, `!`, `?`, and two fifths of it for `,`, `;`, `:`. Divide by the
+rate stretch so pauses shrink as speech speeds up, and hold a pause over to
+emit before the next chunk so an utterance never ends on silence.
+
+**Consequences.** Rhythm is consistent and adjustable, cached entries are
+smaller, and the old "trim the first chunk only" special case is gone. This
+also replaces the espeak clause-terminator API we cannot use: the bundled
+espeak-ng exports `espeak_TextToPhonemes` but not the newer variant that
+reports which punctuation ended a clause, and the chunker already knows,
+because it keeps punctuation attached to its clause.
+
+## Sample-rate conversion uses a windowed sinc
+
+**Context.** 40 of the 176 published voices are not at the 22050 Hz output
+rate (39 at 16 kHz, one at 44.1 kHz). Linear interpolation was cheap but its
+imaging and aliasing are audible on exactly those voices, as a slight
+harshness.
+
+**Decision.** Use a Lanczos-3 windowed-sinc resampler for sample-rate
+conversion, widening the window when downsampling so the same filter
+anti-aliases. Keep linear interpolation inside the pitch shifter, where the
+read rate varies continuously and the quality difference does not justify the
+cost.
+
+**Consequences.** The 16 kHz voices, which are the fast ones people choose on
+slower machines, stop sounding worse than they need to. The cost is roughly
+seven multiply-adds per output sample on those voices only; voices already at
+the output rate skip resampling entirely.
+
 ## Voices are read from the live catalog
 
 **Context.** Voices could be repackaged into archives the add-on hosts, or

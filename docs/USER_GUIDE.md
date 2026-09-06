@@ -70,6 +70,10 @@ change a value).
   which many people find easier to follow at high speed; higher values are
   more animated. Changing this re-prepares the cached words in the
   background, so echo stays instant.
+- **Pause between sentences**: how much silence follows a sentence. Commas,
+  semicolons, and colons get a shorter pause automatically. Pauses shorten
+  with the rate, so fast speech does not become mostly silence. Set it to 0
+  for the tightest possible delivery.
 - **Show advanced voice parameters**: replaces Expressiveness with the three
   parameters the voice model actually uses. See below.
 
@@ -137,6 +141,10 @@ Entries take effect immediately, in every voice and language. They are stored
 in `lexicon.json` (see "Where files are stored"), so they can be backed up or
 shared as an ordinary file.
 
+NVDA can also send a pronunciation of its own, from its speech dictionaries.
+Piper speaks those phonemes as given, and falls back to the original word if
+the voice has no sound for one of them.
+
 ## Using voices you already have
 
 If you have used another Piper-based add-on, its voices are ordinary Piper
@@ -179,6 +187,12 @@ add-on never deletes it:
   once and then cached.
 - **A demo does not play.** Some voices may not have a hosted sample. Try
   downloading the voice and selecting it as your synthesizer to hear it.
+- **A voice says it cannot be used.** Six of the published voices (Hebrew,
+  Japanese, Thai, Ukrainian, and two Chinese voices) were built with a
+  language-specific text processor that this add-on does not include. They are
+  refused before their model is downloaded, because speaking them anyway would
+  produce confident nonsense rather than an error. Other voices in those same
+  languages work normally.
 - **Speech is delayed for new text on an older computer.** This is the neural
   synthesis time. Try a "low" or "x_low" quality voice, which is faster.
   Character echo and repeated words remain instant regardless.

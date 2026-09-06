@@ -8,7 +8,7 @@ import hashlib
 import os
 import urllib.request
 
-from . import _catalog, _paths
+from . import _catalog, _paths, _phonemes
 
 
 class DownloadError(Exception):
@@ -17,6 +17,15 @@ class DownloadError(Exception):
 
 class Cancelled(Exception):
     pass
+
+
+class UnsupportedVoice(DownloadError):
+    """The voice needs a phonemizer this add-on does not include."""
+
+    def __init__(self, voice_name, phoneme_type):
+        self.voice_name = voice_name
+        self.phoneme_type = phoneme_type
+        super().__init__(_phonemes.unsupported_message(voice_name, phoneme_type))
 
 
 def _md5(path):
@@ -81,10 +90,22 @@ def download_url(url, dest, expected_md5=None, expected_size=0,
 
 def download_voice(voice, progress=None, should_cancel=None, opener=None):
     """Download a Voice's model and config into the voices dir. `progress` is
-    called as progress(done_bytes, total_bytes)."""
+    called as progress(done_bytes, total_bytes).
+
+    The configuration comes first even though it is the smaller file: it says
+    which phonemizer the voice needs, and a voice this add-on cannot speak is
+    better refused before its model is downloaded than after.
+    """
     model_dest = _paths.voice_model_path(voice.key)
     config_dest = _paths.voice_config_path(voice.key)
     total = voice.model_size or 0
+
+    download_url(voice.config_url, config_dest, voice.config_md5,
+                 progress=None, should_cancel=should_cancel, opener=opener)
+    phoneme_type = _phonemes.phoneme_type(config_dest)
+    if phoneme_type not in _phonemes.SUPPORTED:
+        remove_voice(voice.key)
+        raise UnsupportedVoice(voice.name or voice.key, phoneme_type)
 
     def model_progress(done, _t):
         if progress is not None:
@@ -93,8 +114,6 @@ def download_voice(voice, progress=None, should_cancel=None, opener=None):
     download_url(voice.model_url, model_dest, voice.model_md5,
                  voice.model_size, progress=model_progress,
                  should_cancel=should_cancel, opener=opener)
-    download_url(voice.config_url, config_dest, voice.config_md5,
-                 progress=None, should_cancel=should_cancel, opener=opener)
 
 
 def remove_voice(voice_key):

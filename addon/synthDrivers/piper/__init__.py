@@ -31,6 +31,7 @@ from speech.commands import (
     CharacterModeCommand,
     IndexCommand,
     LangChangeCommand,
+    PhonemeCommand,
     PitchCommand,
     RateCommand,
     VolumeCommand,
@@ -60,6 +61,10 @@ _VARIANCE_AT_MAX = 1.6
 # and 100 is twice it. Working in percentages rather than absolute numbers
 # keeps one setting meaningful across voices that were trained differently.
 _ADVANCED_MID = 50.0
+# The pause after a sentence, in milliseconds, at the maximum setting.
+# Clause endings get a shorter share of it, decided by the helper from the
+# punctuation the clause ends with.
+_SENTENCE_PAUSE_MAX_MS = 400
 _STRETCH_AT_MIN_RATE = 0.6
 _STRETCH_AT_MID_RATE = 1.0
 _STRETCH_AT_MAX_RATE = 2.0
@@ -79,6 +84,14 @@ class SynthDriver(SynthDriverBase):
             SynthDriverBase.RateBoostSetting(),
             SynthDriverBase.PitchSetting(),
             SynthDriverBase.VolumeSetting(),
+            NumericDriverSetting(
+                "sentencePause",
+                # Translators: how long the voice pauses at punctuation.
+                _("&Pause between sentences"),
+                availableInSettingsRing=True,
+                defaultVal=25,
+                minStep=5,
+            ),
             BooleanDriverSetting(
                 "advancedMode",
                 # Translators: reveals the voice's raw inference parameters.
@@ -145,6 +158,7 @@ class SynthDriver(SynthDriverBase):
         CharacterModeCommand,
         LangChangeCommand,
         BreakCommand,
+        PhonemeCommand,
         PitchCommand,
         RateCommand,
         VolumeCommand,
@@ -163,6 +177,7 @@ class SynthDriver(SynthDriverBase):
         self._rateBoost = False
         self._variant = "0"
         self._variance = _clamp_percent(self._load_conf("variance", 50))
+        self._sentencePause = _clamp_percent(self._load_conf("sentencePause", 25))
         self._advancedMode = bool(self._load_conf("advancedMode", False))
         self._noiseScale = _clamp_percent(self._load_conf("noiseScale", 50))
         self._noiseW = _clamp_percent(self._load_conf("noiseW", 50))
@@ -321,6 +336,8 @@ class SynthDriver(SynthDriverBase):
                 "indexesBefore": [],
                 "charMode": char_mode,
                 "scales": self._scales(),
+                "ipa": False,
+                "sentencePauseMs": self._sentence_pause_ms(),
             }
 
         def open_segment():
@@ -349,6 +366,21 @@ class SynthDriver(SynthDriverBase):
             elif isinstance(item, CharacterModeCommand):
                 close_segment()
                 char_mode = item.state
+            elif isinstance(item, PhonemeCommand):
+                # NVDA hands us the pronunciation it wants, already in IPA.
+                # Send it through untouched, with the text it stood for as a
+                # fallback for voices that lack one of those phonemes.
+                close_segment()
+                if item.ipa:
+                    open_segment()
+                    cur["text"] = item.ipa
+                    cur["ipa"] = True
+                    cur["fallbackText"] = item.text or ""
+                    close_segment()
+                elif item.text:
+                    open_segment()
+                    cur["text"] = item.text
+                    close_segment()
             elif isinstance(item, LangChangeCommand):
                 close_segment()
                 if item.lang and auto_lang:
@@ -412,6 +444,13 @@ class SynthDriver(SynthDriverBase):
             factor = _VARIANCE_AT_MID + ((value - 50) / 50.0) * (
                 _VARIANCE_AT_MAX - _VARIANCE_AT_MID)
         return round(factor, 2)
+
+    def _sentence_pause_ms(self):
+        """Silence after a sentence, in milliseconds. Not part of the cache
+        key: the pause is inserted between cached chunks, never inside one,
+        so changing it costs nothing."""
+        return int(round(_clamp_percent(self._sentencePause)
+                         / 100.0 * _SENTENCE_PAUSE_MAX_MS))
 
     def _scales(self):
         """The inference-parameter multipliers for the helper.
@@ -560,6 +599,15 @@ class SynthDriver(SynthDriverBase):
         setattr(self, attr, value)
         self._save_conf(name, value)
         self._request_warmup()
+
+    def _get_sentencePause(self):
+        return self._sentencePause
+
+    def _set_sentencePause(self, value):
+        value = _clamp_percent(value)
+        if value != self._sentencePause:
+            self._sentencePause = value
+            self._save_conf("sentencePause", value)
 
     def _get_advancedMode(self):
         return self._advancedMode

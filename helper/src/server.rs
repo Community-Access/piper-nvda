@@ -3,6 +3,7 @@
 //! Also decodes and plays voice demo samples.
 
 use crate::cache::AudioCache;
+use crate::config::PhonemeType;
 use crate::dsp;
 use crate::espeak::Phonemizer;
 use crate::lexicon::{self, Lexicon, Piece};
@@ -266,11 +267,43 @@ fn enqueue_warmup(shared: &Shared, model_path: &str, scales: p::Scales) {
 fn cache_key(
     model_path: &str,
     char_mode: bool,
+    ipa: bool,
     scales: &p::Scales,
     lexicon_rev: u64,
     text: &str,
 ) -> String {
-    AudioCache::key(model_path, char_mode, &scales.key_part(), lexicon_rev, text)
+    AudioCache::key(
+        model_path,
+        char_mode,
+        ipa,
+        &scales.key_part(),
+        lexicon_rev,
+        text,
+    )
+}
+
+/// How a chunk of a segment becomes phonemes.
+enum Mode<'a> {
+    /// Already phonemes: a PhonemeCommand, or a voice whose "phonemes" are
+    /// the code points of its own text.
+    Ready(String),
+    /// espeak-ng, with pronunciation overrides spliced in.
+    Espeak(Vec<Piece<'a>>),
+}
+
+/// Silence to insert after a chunk, in milliseconds, from the punctuation it
+/// ends with. Model output is trimmed at both ends, so these pauses are the
+/// only thing separating clauses, which makes the rhythm consistent instead
+/// of dependent on how much silence the model happened to generate.
+fn pause_after(chunk: &str, sentence_pause_ms: u32) -> u32 {
+    if sentence_pause_ms == 0 {
+        return 0;
+    }
+    match chunk.trim_end().chars().next_back() {
+        Some('.') | Some('!') | Some('?') | Some('\u{2026}') => sentence_pause_ms,
+        Some(',') | Some(';') | Some(':') => sentence_pause_ms * 2 / 5,
+        _ => 0,
+    }
 }
 
 /// IPA for one chunk, with lexicon overrides spliced in around the runs of
@@ -300,20 +333,28 @@ fn synth_chunk(
     model_path: &str,
     sid: i64,
     scales: p::Scales,
-    pieces: &[Piece],
+    mode: &Mode,
 ) -> Option<Vec<f32>> {
-    let ipa = chunk_to_ipa(phonemizer, pieces)?;
+    let ipa = match mode {
+        Mode::Ready(text) => text.clone(),
+        Mode::Espeak(pieces) => chunk_to_ipa(phonemizer, pieces)?,
+    };
     let synth = engine
         .synth(Path::new(model_path), &ipa, sid, scales)
         .ok()??;
-    Some(resample(synth.samples, synth.sample_rate))
+    let mut samples = resample(synth.samples, synth.sample_rate);
+    // Trim before caching: the entry is then the sound alone, and the caller
+    // decides how much silence goes around it.
+    dsp::trim_leading_silence(&mut samples);
+    dsp::trim_trailing_silence(&mut samples);
+    Some(samples)
 }
 
 fn resample(samples: Vec<f32>, src_sr: u32) -> Vec<f32> {
     if src_sr as usize == OUTPUT_SR {
         return samples;
     }
-    dsp::linear_resample(&samples, src_sr as f32 / OUTPUT_SR as f32)
+    dsp::resample(&samples, src_sr as f32 / OUTPUT_SR as f32)
 }
 
 fn warm_one(
@@ -325,9 +366,22 @@ fn warm_one(
 ) {
     let pieces = lex.split(&item.text);
     let rev = if lexicon::has_override(&pieces) { lex.rev() } else { 0 };
-    let key = cache_key(&item.model_path, item.char_mode, &item.scales, rev, &item.text);
+    let key = cache_key(
+        &item.model_path,
+        item.char_mode,
+        false,
+        &item.scales,
+        rev,
+        &item.text,
+    );
     if cache.contains(&key) {
         return;
+    }
+    match engine.phoneme_type(Path::new(&item.model_path)) {
+        Ok(PhonemeType::Espeak) => {}
+        // Warming is best effort; voices that need no phonemizer, or one we
+        // do not have, are left to the speak path to handle or report.
+        _ => return,
     }
     let voice = match engine.espeak_voice(Path::new(&item.model_path)) {
         Ok(v) => v,
@@ -336,8 +390,9 @@ fn warm_one(
     if phonemizer.set_language(&voice).is_err() {
         return;
     }
+    let mode = Mode::Espeak(pieces);
     if let Some(samples) =
-        synth_chunk(engine, phonemizer, &item.model_path, 0, item.scales, &pieces)
+        synth_chunk(engine, phonemizer, &item.model_path, 0, item.scales, &mode)
     {
         cache.put(key, samples);
     }
@@ -358,7 +413,9 @@ fn speak_job(
 ) {
     let uid = speak.utterance_id;
     let mut seq: u64 = 0;
-    let mut first_audio = true;
+    // Silence owed to the punctuation of the previous chunk. Held over and
+    // emitted before the next chunk so an utterance never ends on a pause.
+    let mut pending_pause: u32 = 0;
 
     for seg in &speak.segments {
         if canceled(shared, g) {
@@ -375,19 +432,41 @@ fn speak_job(
         if trimmed.is_empty() {
             continue;
         }
-        // Set espeak language from the voice config.
-        match engine.espeak_voice(Path::new(&seg.model_path)) {
-            Ok(voice) => {
-                if let Err(e) = phonemizer.set_language(&voice) {
-                    shared.log("warning", format!("espeak voice {voice}: {e}"));
-                }
-            }
+        let phoneme_type = match engine.phoneme_type(Path::new(&seg.model_path)) {
+            Ok(t) => t,
             Err(e) => {
                 shared.error("loadModel", format!("{}: {e}", seg.model_path));
                 continue;
             }
+        };
+        if let PhonemeType::Unsupported(name) = &phoneme_type {
+            // Feeding espeak's IPA to a voice trained on other phonemes
+            // produces confident nonsense, so say nothing and report it.
+            shared.error(
+                "unsupportedVoice",
+                format!(
+                    "{} needs the {name} phonemizer, which this helper does not include",
+                    seg.model_path
+                ),
+            );
+            continue;
         }
-        let chunks: Vec<String> = if seg.char_mode {
+        if phoneme_type == PhonemeType::Espeak {
+            match engine.espeak_voice(Path::new(&seg.model_path)) {
+                Ok(voice) => {
+                    if let Err(e) = phonemizer.set_language(&voice) {
+                        shared.log("warning", format!("espeak voice {voice}: {e}"));
+                    }
+                }
+                Err(e) => {
+                    shared.error("loadModel", format!("{}: {e}", seg.model_path));
+                    continue;
+                }
+            }
+        }
+        // A pronunciation given as phonemes is one unit; so is a spelled
+        // character. Everything else streams clause by clause.
+        let chunks: Vec<String> = if seg.char_mode || seg.ipa {
             vec![trimmed.to_string()]
         } else {
             text::split_streaming(trimmed)
@@ -396,27 +475,51 @@ fn speak_job(
             if canceled(shared, g) {
                 return;
             }
-            let pieces = lex.split(chunk);
-            let rev = if lexicon::has_override(&pieces) { lex.rev() } else { 0 };
-            let key = cache_key(&seg.model_path, seg.char_mode, &seg.scales, rev, chunk);
+            // Pronunciation overrides only apply to text a phonemizer
+            // would otherwise have guessed at.
+            let (mode, rev) = if seg.ipa {
+                (Mode::Ready(chunk.clone()), 0)
+            } else if phoneme_type == PhonemeType::Text {
+                (Mode::Ready(chunk.to_lowercase()), 0)
+            } else {
+                let pieces = lex.split(chunk);
+                let rev = if lexicon::has_override(&pieces) { lex.rev() } else { 0 };
+                (Mode::Espeak(pieces), rev)
+            };
+            let key = cache_key(
+                &seg.model_path,
+                seg.char_mode,
+                seg.ipa,
+                &seg.scales,
+                rev,
+                chunk,
+            );
             let mut audio = match cache.get(&key) {
                 Some(a) => a,
-                None => match synth_chunk(
-                    engine, phonemizer, &seg.model_path, seg.sid, seg.scales, &pieces,
-                ) {
-                    Some(a) => {
-                        cache.put(key, a.clone());
-                        a
+                None => {
+                    let mut produced = synth_chunk(
+                        engine, phonemizer, &seg.model_path, seg.sid, seg.scales, &mode,
+                    );
+                    // Phonemes this voice does not know would come out as
+                    // silence. Speak the word they stood for instead.
+                    if produced.is_none() && seg.ipa && !seg.fallback_text.trim().is_empty() {
+                        let fallback = Mode::Espeak(lex.split(&seg.fallback_text));
+                        produced = synth_chunk(
+                            engine, phonemizer, &seg.model_path, seg.sid, seg.scales,
+                            &fallback,
+                        );
                     }
-                    None => continue,
-                },
+                    match produced {
+                        Some(a) => {
+                            cache.put(key, a.clone());
+                            a
+                        }
+                        None => continue,
+                    }
+                }
             };
             if canceled(shared, g) {
                 return;
-            }
-            if first_audio {
-                dsp::trim_leading_silence(&mut audio);
-                first_audio = false;
             }
             if (seg.stretch - 1.0).abs() > 0.01 {
                 audio = dsp::stretch(&audio, seg.stretch);
@@ -428,7 +531,11 @@ fn speak_job(
             if canceled(shared, g) {
                 return;
             }
+            if pending_pause > 0 {
+                emit_silence(shared, uid, &mut seq, pending_pause, seg.stretch);
+            }
             emit_pcm(shared, uid, &mut seq, &pcm);
+            pending_pause = pause_after(chunk, seg.sentence_pause_ms);
         }
     }
     if canceled(shared, g) {
@@ -463,9 +570,44 @@ fn play_sample(shared: &Shared, g: u64, uid: u64, path: &str) {
     shared.send(msg_type::DONE, &p::Done { utterance_id: uid });
 }
 
+/// Emit a pause. Pauses shorten with the rate, the way the speech around
+/// them does, so fast speech does not end up mostly silence.
+fn emit_silence(shared: &Shared, uid: u64, seq: &mut u64, ms: u32, stretch: f32) {
+    let scale = if stretch > 0.05 { stretch } else { 1.0 };
+    let count = (OUTPUT_SR as f32 * (ms as f32 / 1000.0) / scale) as usize;
+    if count > 0 {
+        emit_pcm(shared, uid, seq, &vec![0i16; count]);
+    }
+}
+
 fn emit_pcm(shared: &Shared, uid: u64, seq: &mut u64, pcm: &[i16]) {
     for chunk in pcm.chunks(CHUNK_SAMPLES) {
         shared.send_audio(uid, *seq, chunk);
         *seq += 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pauses_follow_the_punctuation() {
+        assert_eq!(pause_after("Hello.", 100), 100);
+        assert_eq!(pause_after("Hello!", 100), 100);
+        assert_eq!(pause_after("Hello?", 100), 100);
+        // Clause endings get a shorter pause than sentence endings.
+        assert_eq!(pause_after("Hello,", 100), 40);
+        assert_eq!(pause_after("Hello;", 100), 40);
+        // No punctuation, no pause: the clause was split for streaming.
+        assert_eq!(pause_after("Hello", 100), 0);
+        // Trailing whitespace does not hide the punctuation.
+        assert_eq!(pause_after("Hello. ", 100), 100);
+    }
+
+    #[test]
+    fn zero_setting_means_no_pauses_at_all() {
+        assert_eq!(pause_after("Hello.", 0), 0);
+        assert_eq!(pause_after("Hello,", 0), 0);
     }
 }

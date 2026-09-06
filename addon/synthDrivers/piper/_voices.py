@@ -5,7 +5,7 @@ back to each voice's local .onnx.json when the catalog is absent.
 
 import json
 
-from . import _catalog, _paths
+from . import _catalog, _paths, _phonemes
 
 
 class InstalledVoice:
@@ -42,10 +42,17 @@ def _from_local_config(key):
 
 
 def load_installed():
-    """Return a list of InstalledVoice, sorted by language then name."""
+    """Return a list of InstalledVoice, sorted by language then name.
+
+    Voices needing a phonemizer this add-on does not include are left out
+    rather than offered and then spoken as noise. That can only happen to a
+    voice installed by an older version, or copied in by hand.
+    """
     catalog = {v.key: v for v in _catalog.load_catalog()}
     voices = []
     for key in _paths.installed_voice_keys():
+        if not _phonemes.is_supported(_paths.voice_config_path(key)):
+            continue
         cat = catalog.get(key)
         local = _from_local_config(key)
         if cat is not None:
