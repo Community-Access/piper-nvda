@@ -71,10 +71,12 @@ capitalization, and apply to every voice.
 
 ## Prepared audio
 
-Piper prepares the alphabet and the words NVDA says most often while it is
-idle, so they speak with no delay. "Prepared audio" in the voice manager adds
-words and short phrases of your own to that list, shows how much space it
-uses, and can rebuild it from scratch.
+Piper prepares the alphabet, the digits, punctuation and symbols with the
+names NVDA gives them, numbers, and the words NVDA says most often, all while
+it is idle, so they speak with no delay. "Prepared audio" in the voice manager
+adds words and short phrases of your own to that list, shows how much space it
+uses, and can rebuild it from scratch. One voice takes about 25 seconds of
+idle time and 12 MB; the total across voices is capped at 64 MB.
 
 ## Language voices
 

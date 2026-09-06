@@ -3,6 +3,31 @@
 All notable changes to this add-on are documented here. This project follows
 [Semantic Versioning](https://semver.org): major.minor.patch.
 
+## [0.6.0] - 2026-09-06
+
+### Added
+- Punctuation, symbols, and numbers are prepared in advance along with the
+  alphabet. That means every ASCII punctuation mark and the common
+  typographic and currency symbols, the names NVDA gives them, digits both as
+  digits and as words, and the number words. The names are taken from NVDA's
+  own English symbol dictionary rather than guessed: NVDA says "bang" for an
+  exclamation mark and "graav" for a backtick, which no amount of intuition
+  would produce. Reading by character and spelling a word are where a delay
+  is felt most, and punctuation is as common there as letters.
+
+### Changed
+- Character mode is no longer part of the audio cache key. It decides how an
+  utterance is split into chunks and the key is built per chunk, so it could
+  no longer affect the audio; dropping it means a letter spelled and the same
+  letter spoken share one entry. The cache format version changed
+  accordingly, so caches from earlier versions are discarded and rebuilt.
+- The cache is now bounded by the audio it holds, 64 MB, as well as by the
+  number of entries. Entries average half a second each, so an entry count
+  alone was a poor bound on disk for someone with several voices.
+
+A full warm is about 263 entries: roughly 25 seconds of idle time and 12 MB,
+measured with a medium-quality voice on a mid-range laptop.
+
 ## [0.5.0] - 2026-09-06
 
 ### Added

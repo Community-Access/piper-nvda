@@ -12,9 +12,16 @@ use std::path::{Path, PathBuf};
 
 const MAGIC: &[u8; 4] = b"KCAC";
 // 2: entries are stored with leading and trailing silence trimmed.
-const VERSION: u32 = 2;
+// 3: character mode dropped from the key; entries are keyed per chunk.
+const VERSION: u32 = 3;
 /// Maximum cached entries before least-recently-used eviction.
 const MAX_ENTRIES: usize = 4000;
+/// Maximum audio held, in samples. Entries average about half a second, so
+/// the entry count alone is a poor bound on disk: a full warm is a few
+/// hundred entries per voice, and someone with several voices would otherwise
+/// accumulate hundreds of megabytes in their NVDA configuration directory.
+/// 16M samples is about 64 MB, or twelve minutes of speech.
+const MAX_TOTAL_SAMPLES: usize = 16 * 1024 * 1024;
 /// Chunks longer than this (in samples, ~4s at 24 kHz) are not cached; long
 /// text rarely repeats verbatim and would waste the budget.
 const MAX_CACHEABLE_SAMPLES: usize = 24000 * 4;
@@ -29,6 +36,7 @@ pub struct AudioCache {
     clock: u64,
     path: Option<PathBuf>,
     dirty: bool,
+    total_samples: usize,
 }
 
 impl AudioCache {
@@ -39,29 +47,32 @@ impl AudioCache {
             clock: 0,
             path,
             dirty: false,
+            total_samples: 0,
         };
         cache.load();
         cache
     }
 
-    /// Build a cache key from the fields that change model output. DSP-only
-    /// fields (pitch, volume, stretch) are intentionally excluded so one
-    /// entry serves every rate, pitch, and volume. `scales` is the inference
-    /// parameter multipliers, already rounded. `lexicon_rev` is 0 unless the
-    /// chunk contains a pronunciation override, so editing the lexicon only
-    /// invalidates the chunks it actually affects.
-    pub fn key(voice: &str, char_mode: bool, ipa: bool, scales: &str,
-               lexicon_rev: u64, text: &str) -> String {
-        format!(
-            "{voice}|{}{}|{scales}|{lexicon_rev}|{text}",
-            char_mode as u8, ipa as u8
-        )
+    /// Build a cache key from the fields that change model output.
+    ///
+    /// DSP-only fields (pitch, volume, stretch) are excluded so one entry
+    /// serves every rate, pitch, and volume. So is character mode: it decides
+    /// how an utterance is split into chunks, and the key is built per chunk,
+    /// so by this point it can no longer change the audio. Leaving it out
+    /// means a letter spelled and the same letter spoken share one entry.
+    /// `scales` is the inference parameter multipliers, already rounded, and
+    /// `lexicon_rev` is 0 unless the chunk contains a pronunciation override,
+    /// so editing the lexicon only invalidates the chunks it affects.
+    pub fn key(voice: &str, ipa: bool, scales: &str, lexicon_rev: u64,
+               text: &str) -> String {
+        format!("{voice}|{}|{scales}|{lexicon_rev}|{text}", ipa as u8)
     }
 
     /// Drop everything, in memory and on disk. Used when the user asks for
     /// the prepared audio to be rebuilt.
     pub fn clear(&mut self) {
         self.map.clear();
+        self.total_samples = 0;
         self.dirty = false;
         if let Some(path) = &self.path {
             let _ = std::fs::remove_file(path);
@@ -89,20 +100,36 @@ impl AudioCache {
         }
         self.clock += 1;
         let clock = self.clock;
-        self.map.insert(key, Entry { samples, used: clock });
+        let added = samples.len();
+        if let Some(previous) = self.map.insert(key, Entry { samples, used: clock }) {
+            self.total_samples -= previous.samples.len();
+        }
+        self.total_samples += added;
         self.dirty = true;
-        if self.map.len() > MAX_ENTRIES {
+        if self.map.len() > MAX_ENTRIES || self.total_samples > MAX_TOTAL_SAMPLES {
             self.evict();
         }
     }
 
     fn evict(&mut self) {
-        // Remove the ~10% least recently used entries in one pass.
-        let target = self.map.len() - (MAX_ENTRIES * 9 / 10);
-        let mut used: Vec<u64> = self.map.values().map(|e| e.used).collect();
-        used.sort_unstable();
-        let threshold = used[target.min(used.len() - 1)];
-        self.map.retain(|_, e| e.used > threshold);
+        // Drop least-recently-used entries until both budgets are back under
+        // 90%, so eviction runs in batches rather than on every insert.
+        let entry_target = MAX_ENTRIES / 10 * 9;
+        let sample_target = MAX_TOTAL_SAMPLES / 10 * 9;
+        let mut by_use: Vec<(u64, String)> = self
+            .map
+            .iter()
+            .map(|(key, entry)| (entry.used, key.clone()))
+            .collect();
+        by_use.sort_unstable_by_key(|(used, _)| *used);
+        for (_, key) in by_use {
+            if self.map.len() <= entry_target && self.total_samples <= sample_target {
+                break;
+            }
+            if let Some(entry) = self.map.remove(&key) {
+                self.total_samples -= entry.samples.len();
+            }
+        }
     }
 
     // -- persistence -------------------------------------------------------
@@ -148,7 +175,13 @@ impl AudioCache {
             }
             self.clock += 1;
             let clock = self.clock;
+            self.total_samples += samples.len();
             self.map.insert(key, Entry { samples, used: clock });
+        }
+        // A file written by a build with larger budgets must not blow past
+        // this one's.
+        if self.map.len() > MAX_ENTRIES || self.total_samples > MAX_TOTAL_SAMPLES {
+            self.evict();
         }
     }
 
@@ -200,7 +233,7 @@ mod tests {
     #[test]
     fn put_get_roundtrip() {
         let mut c = AudioCache::new(None);
-        let k = AudioCache::key("lessac", false, false, "1.00,1.00,1.00", 0, "a");
+        let k = AudioCache::key("lessac", false, "1.00,1.00,1.00", 0, "a");
         assert!(c.get(&k).is_none());
         c.put(k.clone(), vec![0.1, 0.2, 0.3]);
         assert_eq!(c.get(&k), Some(vec![0.1, 0.2, 0.3]));
@@ -211,15 +244,14 @@ mod tests {
         // pitch/volume/rate are not part of the key; they are applied as DSP
         // after the cache, so the same text+voice collides on purpose.
         let plain = "1.00,1.00,1.00";
-        let a = AudioCache::key("v", false, false, plain, 0, "a");
-        let b = AudioCache::key("v", false, false, plain, 0, "a");
+        let a = AudioCache::key("v", false, plain, 0, "a");
+        let b = AudioCache::key("v", false, plain, 0, "a");
         assert_eq!(a, b);
-        assert_ne!(a, AudioCache::key("v", true, false, plain, 0, "a"));
         // The same string spoken as text and as IPA are different sounds.
-        assert_ne!(a, AudioCache::key("v", false, true, plain, 0, "a"));
-        assert_ne!(a, AudioCache::key("v", false, false, "1.30,1.00,1.00", 0, "a"));
-        assert_ne!(a, AudioCache::key("v", false, false, "1.00,1.20,1.00", 0, "a"));
-        assert_ne!(a, AudioCache::key("v", false, false, plain, 9, "a"));
+        assert_ne!(a, AudioCache::key("v", true, plain, 0, "a"));
+        assert_ne!(a, AudioCache::key("v", false, "1.30,1.00,1.00", 0, "a"));
+        assert_ne!(a, AudioCache::key("v", false, "1.00,1.20,1.00", 0, "a"));
+        assert_ne!(a, AudioCache::key("v", false, plain, 9, "a"));
     }
 
     #[test]
@@ -246,6 +278,22 @@ mod tests {
         let k = "big".to_string();
         c.put(k.clone(), vec![0.0; MAX_CACHEABLE_SAMPLES + 1]);
         assert!(c.get(&k).is_none());
+    }
+
+    #[test]
+    fn eviction_respects_the_audio_budget() {
+        let mut c = AudioCache::new(None);
+        // Entries far too large to all fit; the count budget alone would
+        // never notice.
+        let big = vec![0.0f32; MAX_CACHEABLE_SAMPLES];
+        let needed = MAX_TOTAL_SAMPLES / MAX_CACHEABLE_SAMPLES + 5;
+        for i in 0..needed {
+            c.put(format!("k{i}"), big.clone());
+        }
+        assert!(c.map.len() < needed, "nothing was evicted");
+        assert!(c.total_samples <= MAX_TOTAL_SAMPLES, "over the audio budget");
+        // The most recent entry survives.
+        assert!(c.contains(&format!("k{}", needed - 1)));
     }
 
     #[test]

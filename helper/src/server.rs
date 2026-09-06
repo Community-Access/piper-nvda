@@ -24,6 +24,46 @@ pub const OUTPUT_SR: usize = 22050;
 const CHUNK_SAMPLES: usize = OUTPUT_SR / 5;
 
 const WARMUP_CHARS: &str = "abcdefghijklmnopqrstuvwxyz0123456789";
+
+/// Punctuation and symbols. Reading by character or spelling a word is
+/// exactly where a delay is felt, and these are as common there as letters.
+const WARMUP_SYMBOLS: &[&str] = &[
+    "!", "\"", "#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".",
+    "/", ":", ";", "<", "=", ">", "?", "@", "[", "\\", "]", "^", "_", "`",
+    "{", "|", "}", "~", "–", "—", "‘", "’", "“", "”", "…", "•", "°", "©",
+    "®", "™", "€", "£", "¥", "¢", "§", "¶", "×", "÷", "±", "≠", "≤", "≥",
+    "→", "←", "↑", "↓", "½", "¼", "¾", "«", "»",
+];
+
+/// What NVDA calls those symbols when it speaks one, taken from its own
+/// English symbol dictionary rather than guessed: NVDA says "bang" for "!"
+/// and "graav" for "`", which no amount of intuition would produce. These are
+/// prepared in both character and text mode, because a symbol reaches the
+/// synthesizer as its name either way depending on how it was reached.
+const WARMUP_SYMBOL_NAMES: &[&str] = &[
+    "bang", "quote", "dollar", "percent", "and", "tick", "left paren",
+    "right paren", "star", "plus", "comma", "dash", "dot", "slash", "colon",
+    "semi", "less", "equals", "greater", "question", "at", "left bracket",
+    "right bracket", "caret", "line", "graav", "left brace", "bar",
+    "right brace", "tilda", "en dash", "em dash", "left tick", "right tick",
+    "left quote", "right quote", "dot dot dot", "bullet", "degrees",
+    "copyright", "registered", "trademark", "euro", "pound", "yen", "cents",
+    "section", "paragraph marker", "times", "divide by", "plus or Minus",
+    "not equal to", "less- than or equal to", "greater-than or equal to",
+    "right arrow", "left arrow", "up arrow", "down arrow", "one half",
+    "one quarter", "three quarters", "double left pointing angle bracket",
+    "double right pointing angle bracket",
+];
+
+/// Numbers, as digits and as the words a voice says them with. Line numbers,
+/// page numbers, times, and list positions are read constantly.
+const WARMUP_NUMBERS: &[&str] = &[
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+    "seventeen", "eighteen", "nineteen", "twenty", "thirty", "forty",
+    "fifty", "sixty", "seventy", "eighty", "ninety", "hundred", "thousand",
+    "million", "billion",
+];
 const WARMUP_WORDS: &[&str] = &[
     "button", "checkbox", "check box", "radio button", "menu", "menu item",
     "menu bar", "list", "list item", "tree view", "tab", "edit", "combo box",
@@ -73,7 +113,6 @@ struct Work {
 struct WarmupItem {
     model_path: String,
     text: String,
-    char_mode: bool,
     scales: p::Scales,
 }
 
@@ -280,51 +319,58 @@ fn enqueue_warmup(
     scales: p::Scales,
     extra_words: &[String],
 ) {
+    let items = warmup_items(model_path, scales, extra_words);
     let mut work = shared.work.lock().unwrap();
     // Re-warming for a new voice or variance makes queued items pointless.
     work.warmup.clear();
-    for ch in WARMUP_CHARS.chars() {
-        work.warmup.push_back(WarmupItem {
-            model_path: model_path.to_string(),
-            text: ch.to_string(),
-            char_mode: true,
-            scales,
-        });
-    }
-    // The user's own phrases go first among the words: they asked for these,
-    // and preparation is idle-time work that a burst of speech interrupts.
-    let words = extra_words
-        .iter()
-        .map(String::as_str)
-        .chain(WARMUP_WORDS.iter().copied());
-    for word in words {
-        work.warmup.push_back(WarmupItem {
-            model_path: model_path.to_string(),
-            text: word.to_string(),
-            char_mode: false,
-            scales,
-        });
-    }
+    work.warmup.extend(items);
     drop(work);
     shared.cv.notify_one();
 }
 
+/// Everything worth preparing for a voice, in the order it is prepared.
+fn warmup_items(model_path: &str, scales: p::Scales, extra_words: &[String]) -> Vec<WarmupItem> {
+    let mut items = Vec::new();
+    let mut push = |text: &str| {
+        items.push(WarmupItem {
+            model_path: model_path.to_string(),
+            text: text.to_string(),
+            scales,
+        });
+    };
+    // The user's own phrases go first: they asked for these specifically, and
+    // preparation is idle-time work that any burst of speech interrupts.
+    for word in extra_words {
+        push(word);
+    }
+    for ch in WARMUP_CHARS.chars() {
+        push(&ch.to_string());
+    }
+    for symbol in WARMUP_SYMBOLS {
+        push(symbol);
+    }
+    for name in WARMUP_SYMBOL_NAMES {
+        push(name);
+    }
+    for number in WARMUP_NUMBERS {
+        push(number);
+    }
+    for word in WARMUP_WORDS {
+        push(word);
+    }
+    // Anything already prepared is skipped when it comes off the queue, so
+    // overlap between these lists costs nothing.
+    items
+}
+
 fn cache_key(
     model_path: &str,
-    char_mode: bool,
     ipa: bool,
     scales: &p::Scales,
     lexicon_rev: u64,
     text: &str,
 ) -> String {
-    AudioCache::key(
-        model_path,
-        char_mode,
-        ipa,
-        &scales.key_part(),
-        lexicon_rev,
-        text,
-    )
+    AudioCache::key(model_path, ipa, &scales.key_part(), lexicon_rev, text)
 }
 
 /// How a chunk of a segment becomes phonemes.
@@ -411,14 +457,7 @@ fn warm_one(
 ) {
     let pieces = lex.split(&item.text);
     let rev = if lexicon::has_override(&pieces) { lex.rev() } else { 0 };
-    let key = cache_key(
-        &item.model_path,
-        item.char_mode,
-        false,
-        &item.scales,
-        rev,
-        &item.text,
-    );
+    let key = cache_key(&item.model_path, false, &item.scales, rev, &item.text);
     if cache.contains(&key) {
         return;
     }
@@ -531,14 +570,7 @@ fn speak_job(
                 let rev = if lexicon::has_override(&pieces) { lex.rev() } else { 0 };
                 (Mode::Espeak(pieces), rev)
             };
-            let key = cache_key(
-                &seg.model_path,
-                seg.char_mode,
-                seg.ipa,
-                &seg.scales,
-                rev,
-                chunk,
-            );
+            let key = cache_key(&seg.model_path, seg.ipa, &seg.scales, rev, chunk);
             let cache_enabled = shared.cache_enabled.load(Ordering::SeqCst);
             let mut audio = match cache.get(&key).filter(|_| cache_enabled) {
                 Some(a) => a,
@@ -638,6 +670,32 @@ fn emit_pcm(shared: &Shared, uid: u64, seq: &mut u64, pcm: &[i16]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn items(extra: &[String]) -> Vec<WarmupItem> {
+        warmup_items("voice.onnx", p::Scales::default(), extra)
+    }
+
+    #[test]
+    fn warmup_covers_letters_digits_symbols_and_numbers() {
+        let prepared = items(&[]);
+        let texts: Vec<&str> = prepared.iter().map(|i| i.text.as_str()).collect();
+
+        // Letters and digits.
+        assert!(texts.contains(&"a") && texts.contains(&"7"));
+        // Punctuation, and what NVDA calls it when it speaks one.
+        assert!(texts.contains(&"!") && texts.contains(&"?"));
+        assert!(texts.contains(&"bang"));
+        // Numbers, as digits and as words.
+        assert!(texts.contains(&"seventeen"));
+        // And the roles and states NVDA says constantly.
+        assert!(texts.contains(&"button"));
+    }
+
+    #[test]
+    fn the_users_own_phrases_are_prepared_first() {
+        let prepared = items(&["Inbox".to_string()]);
+        assert_eq!(prepared[0].text, "Inbox");
+    }
 
     #[test]
     fn pauses_follow_the_punctuation() {

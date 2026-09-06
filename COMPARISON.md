@@ -11,7 +11,7 @@ add-on that shares this project's architecture.
 | [Sonata Neural Voices](https://github.com/mush42/sonata-nvda) | Last release v3.1.0, June 2024 | Rust `sonata` engine over gRPC, ONNX Runtime, espeak-ng |
 | [Dengjen Neural Voices](https://github.com/OnjLouis/dengjen-nvda) | Maintained fork of Sonata; documents NVDA 2025.1 through 2026.1 | Same engine, kept building against current NVDA |
 | [rmcpantoja/piper-nvda](https://github.com/rmcpantoja/piper-nvda) | Separate Piper driver | Piper |
-| This add-on | 0.5.0 | Rust helper over stdio, ONNX Runtime, espeak-ng |
+| This add-on | 0.6.0 | Rust helper over stdio, ONNX Runtime, espeak-ng |
 
 Sonata is the original and is no longer released; Dengjen is the version to
 compare against, and is the one this document means whenever it says "the
@@ -65,9 +65,10 @@ makes things worse, which also took 18.5 MB off the download.
 These follow from the design rather than from a benchmark:
 
 - **Audio cache and idle warmup.** This add-on caches raw model output and
-  warms the alphabet plus the words NVDA says most (roles, states, common
-  words) during idle time, persisted between sessions, so character echo and
-  navigation cost no inference at all. The Sonata family has no such cache;
+  warms the alphabet, the digits, every punctuation mark and symbol with the
+  names NVDA gives them, the numbers, and the words NVDA says most (roles,
+  states, common words) during idle time, persisted between sessions, so
+  character echo, spelling, and navigation cost no inference at all. The Sonata family has no such cache;
   its answer to latency is shipping separate "fast" (RT) model variants, which
   trades quality for speed. Both approaches help; only one of them is free.
 - **The prepared list is yours to extend.** Words and short phrases you add

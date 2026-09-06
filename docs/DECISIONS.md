@@ -34,6 +34,40 @@ any rate or pitch. This is the single largest behavioural difference from
 other Piper add-ons for NVDA. The cost is disk and memory for the cache, and
 the discipline that anything affecting model output must be in the key.
 
+## The symbol names come from NVDA's dictionary, not from intuition
+
+**Context.** Reading by character and spelling a word are exactly where a
+delay is felt, and punctuation is as common there as letters. Preparing a
+symbol means preparing what the synthesizer will actually be asked to say,
+which is not the symbol but the name NVDA gives it.
+
+**Decision.** Take the names from NVDA's own English symbol dictionary
+(`source/locale/en/symbols.dic`) rather than writing them by hand. Prepare the
+symbol characters as well, the digits both as digits and as words, and the
+number words.
+
+**Consequences.** The prepared names are the ones NVDA really says: "bang" for
+`!`, "graav" for a backtick, "semi" for `;`, "dot dot dot" for an ellipsis.
+None of those are what a reasonable person would guess, and a guessed list
+would have prepared audio that is never asked for. The cost is that the list
+is English: a French voice spends idle time preparing English symbol names it
+will never be asked for. Sending NVDA's current locale symbols from the driver
+would fix that and is the obvious next step if it matters.
+
+## Character mode is not part of the cache key
+
+**Context.** The key once included NVDA's character-mode flag, on the
+assumption that spelling a letter and speaking it are different sounds.
+
+**Decision.** Drop it. Character mode decides how an utterance is split into
+chunks, and the key is built per chunk, so by the time there is a key the
+flag can no longer change the audio.
+
+**Consequences.** A letter spelled and the same letter spoken share one entry,
+which halved the cost of preparing symbols, and a symbol name prepared once
+serves however NVDA chose to send it. The cache format version was raised so
+that files keyed the old way are discarded rather than never matching.
+
 ## The prepared list is extensible, and the whole cache is optional
 
 **Context.** The built-in warmup list is what every NVDA user hears: control

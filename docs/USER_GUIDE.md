@@ -79,9 +79,11 @@ change a value).
   with the rate, so fast speech does not become mostly silence. Set it to 0
   for the tightest possible delivery.
 - **Prepare audio in the background for instant echo**: on by default. Piper
-  prepares the alphabet and the words NVDA says most often while it is idle,
-  and remembers what it has already said, so those speak with no delay at
-  all. Turn it off to save disk and memory at the cost of that instant echo.
+  prepares the alphabet, the digits, every punctuation mark and symbol along
+  with the names NVDA gives them, the numbers, and the words NVDA says most
+  often, and it remembers what it has already said. Those then speak with no
+  delay at all. Turn it off to save disk and memory at the cost of that
+  instant echo.
 - **Show advanced voice parameters**: replaces Expressiveness with the three
   parameters the voice model actually uses. See below.
 
@@ -145,6 +147,12 @@ The same dialog shows how much space the prepared audio is using and has a
 "Rebuild prepared audio" button, which throws it all away and prepares it
 again. That is worth doing if a voice ever sounds wrong in a way that
 re-selecting it does not fix, or simply to reclaim the space.
+
+Preparing everything for one voice takes around 25 seconds of idle time and
+about 12 MB, measured on a mid-range laptop. It happens in the background and
+stops the moment there is real speech to say, so it is not a delay you wait
+through. Across several voices the total is capped at 64 MB; past that the
+least recently used audio is dropped.
 
 ## Fixing how a word is pronounced
 

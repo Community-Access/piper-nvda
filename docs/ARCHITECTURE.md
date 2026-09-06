@@ -99,9 +99,9 @@ Rust crate in `helper/`, built as `piper-helper.exe`.
 
 Synthesizing the same short text repeatedly is wasteful, and for a screen
 reader the same characters and words are spoken constantly. The helper keeps
-an LRU cache of raw model output, keyed on the voice model, character-mode
-flag, the inference-parameter multipliers, lexicon revision, and text, but
-**not** on pitch,
+an LRU cache of raw model output, keyed on the voice model, the
+inference-parameter multipliers, lexicon revision, and text, but **not** on
+pitch,
 volume, or rate. Pitch and volume are applied as cheap DSP after the cache,
 and rate is applied entirely as post-cache time-stretch (the model always runs
 at its default speed). Because rate is not in the key, one cached entry is
@@ -114,14 +114,31 @@ lexicon revision is folded in only for chunks that actually contain an
 overridden word, so adding one pronunciation entry invalidates the handful of
 chunks that use it rather than the whole cache.
 
+Character mode is not in the key either, though it once was. It decides how
+an utterance is split into chunks, and the key is built per chunk, so by the
+time a key exists it can no longer change the audio. Leaving it out means a
+letter spelled and the same letter spoken share one entry, which halved what
+warming symbols costs.
+
 On startup and voice change the driver sends a LOAD_VOICE message. The helper
-then warms the alphabet and a curated list of common NVDA words for that voice
-during idle time only, yielding to any real speech. LOAD_VOICE also carries
+then warms, for that voice and during idle time only, yielding to any real
+speech: the alphabet and digits; every ASCII punctuation mark plus the common
+typographic and currency symbols; the names NVDA gives those symbols, taken
+from NVDA's own English symbol dictionary rather than guessed, since NVDA says
+"bang" for `!` and "graav" for a backtick; numbers as digits and as words; and
+the roles, states, and common words NVDA says constantly. LOAD_VOICE also carries
 the user's own phrases from `warmup.json`, which are queued ahead of the
 built-in words: they were asked for specifically, and preparation is idle work
 that any burst of speech interrupts. The cache is persisted to disk, so after
 the first session character echo and common announcements are instant
 immediately.
+
+A full warm is about 263 entries, roughly 25 seconds of idle time and 12 MB
+on disk, measured with a medium-quality voice on a mid-range laptop. The cache
+is bounded by both an entry count and an audio budget of 16M samples, about
+64 MB: entries average half a second each, so counting them alone is a poor
+bound on disk, and someone with several voices would otherwise accumulate
+hundreds of megabytes in their configuration directory.
 
 Two controls exist for it. SET_CACHE turns preparation and reuse off or on;
 the flag is an atomic because both the reader and the worker thread read it,
