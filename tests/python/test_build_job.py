@@ -19,7 +19,9 @@ def _voice(key, lang, num_speakers=1, speaker_map=None):
 
 
 @pytest.fixture
-def driver():
+def driver(tmp_path, monkeypatch):
+    # Keep anything the driver writes out of the source tree.
+    monkeypatch.setenv("PIPER_DATA_DIR", str(tmp_path / "config"))
     d = piper.SynthDriver.__new__(piper.SynthDriver)
     vs = [
         _voice("en_US-lessac-medium", "en_US"),
@@ -42,6 +44,9 @@ def driver():
     d._noiseW = 50
     d._lengthScale = 50
     d._lang_voices = {}
+    d._rememberPerVoice = True
+    d._voice_settings = {}
+    d._favorites = []
     d._lock = threading.Lock()
     d._utterance_counter = 0
     return d
@@ -364,3 +369,65 @@ def test_ordinary_text_is_never_renamed(driver):
 def test_a_symbol_nvda_cannot_name_is_passed_through(driver):
     job = driver._build_job([CharacterModeCommand(True), "\u2603"])
     assert [s["text"] for s in job["segments"]] == ["\u2603"]
+
+
+# -- settings remembered per voice ------------------------------------------
+
+def test_settings_follow_the_voice_they_were_made_for(wired):
+    """Rate and pitch that suit a fast low-quality voice rarely suit a slow
+    high-quality one, and NVDA keeps settings per synthesizer, not per voice."""
+    wired._rate = 80
+    wired._pitch = 30
+    wired._set_voice("fr_FR-siwis-medium")
+    # A voice with nothing remembered inherits what is set, so arriving at it
+    # never changes how it sounds.
+    assert (wired._rate, wired._pitch) == (80, 30)
+
+    wired._rate = 40
+    wired._set_voice("en_US-lessac-medium")
+    assert (wired._rate, wired._pitch) == (80, 30)
+
+    wired._set_voice("fr_FR-siwis-medium")
+    assert wired._rate == 40
+
+
+def test_the_speaker_of_a_multi_speaker_voice_is_remembered(wired):
+    wired._set_voice("en_US-libritts-high")
+    wired._variant = "2"
+    wired._set_voice("en_US-lessac-medium")
+    wired._set_voice("en_US-libritts-high")
+    assert wired._variant == "2"
+
+
+def test_turning_the_memory_off_leaves_settings_alone(wired):
+    wired._rate = 90
+    wired._set_voice("fr_FR-siwis-medium")
+    wired._rate = 20
+    wired._set_voice("en_US-lessac-medium")
+
+    wired._rememberPerVoice = False
+    wired._rate = 55
+    wired._set_voice("fr_FR-siwis-medium")
+    assert wired._rate == 55
+
+
+def test_settings_are_written_to_disk_on_a_voice_change(wired):
+    from synthDrivers.piper import _voicesettings
+    wired._rate = 33
+    wired._set_voice("fr_FR-siwis-medium")
+    stored, _favorites = _voicesettings.load()
+    assert stored["en_US-lessac-medium"]["rate"] == 33
+
+
+def test_rate_boost_reaches_much_further_than_the_plain_rate(driver):
+    _speed, plain = driver._rate_to_stretch(100)
+    driver._rateBoost = True
+    _speed, boosted = driver._rate_to_stretch(100)
+    # Boost is opt-in, so it can go far beyond the ordinary top speed.
+    assert plain == 2.0
+    assert boosted >= 4.0
+    # And it still does nothing at the bottom of the range.
+    driver._rateBoost = False
+    _speed, slow = driver._rate_to_stretch(0)
+    driver._rateBoost = True
+    assert driver._rate_to_stretch(0)[1] == slow

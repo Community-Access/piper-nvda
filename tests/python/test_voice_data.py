@@ -330,3 +330,100 @@ def test_warmup_survives_a_damaged_file():
     with open(_warmup.path(), "w", encoding="utf-8") as f:
         f.write("[not json")
     assert _warmup.load() == []
+
+
+# -- per-voice settings and favourites -------------------------------------
+
+def test_voice_settings_round_trip():
+    from synthDrivers.piper import _voicesettings
+    assert _voicesettings.load() == ({}, [])
+    _voicesettings.save({"en_US-lessac-medium": {"rate": 70, "pitch": 40}},
+                        ["en_US-lessac-medium"])
+    voices, favorites = _voicesettings.load()
+    assert voices == {"en_US-lessac-medium": {"rate": 70, "pitch": 40}}
+    assert favorites == ["en_US-lessac-medium"]
+
+
+def test_voice_settings_ignore_unknown_fields():
+    from synthDrivers.piper import _voicesettings
+    _voicesettings.save({"v": {"rate": 10, "nonsense": 1}}, [])
+    voices, _fav = _voicesettings.load()
+    assert voices == {"v": {"rate": 10}}
+
+
+def test_voice_settings_survive_a_damaged_file():
+    from synthDrivers.piper import _voicesettings
+    os.makedirs(_paths.data_dir(), exist_ok=True)
+    with open(_voicesettings.path(), "w", encoding="utf-8") as f:
+        f.write("not json at all")
+    assert _voicesettings.load() == ({}, [])
+
+
+def test_next_favorite_cycles_the_favourites():
+    from synthDrivers.piper import _voicesettings
+    installed = {"a", "b", "c"}
+    favorites = ["a", "c"]
+    assert _voicesettings.next_favorite(favorites, installed, "a") == "c"
+    assert _voicesettings.next_favorite(favorites, installed, "c") == "a"
+    # A voice outside the ring moves into it rather than going nowhere.
+    assert _voicesettings.next_favorite(favorites, installed, "b") == "a"
+
+
+def test_next_favorite_falls_back_to_every_installed_voice():
+    from synthDrivers.piper import _voicesettings
+    installed = {"a", "b"}
+    # Useful before anyone has chosen a favourite.
+    assert _voicesettings.next_favorite([], installed, "a") == "b"
+    # And there is nowhere to go with only one voice.
+    assert _voicesettings.next_favorite([], {"a"}, "a") is None
+    # Favourites that are no longer installed do not make a ring.
+    assert _voicesettings.next_favorite(["gone"], {"a"}, "a") is None
+
+
+# -- backup, restore, reset -------------------------------------------------
+
+def test_backup_and_restore_round_trip(tmp_path):
+    from synthDrivers.piper import _backup, _lexicon, _voicesettings
+    _lexicon.save({"nvda": "ɛnviːdiːˈeɪ"})
+    _voicesettings.save({"v": {"rate": 80}}, ["v"])
+    archive = str(tmp_path / "settings.zip")
+
+    written = _backup.backup(archive)
+    assert "lexicon.json" in written and "voice_settings.json" in written
+
+    _backup.reset()
+    assert _lexicon.load() == (0, {})
+    assert _voicesettings.load() == ({}, [])
+
+    restored = _backup.restore(archive)
+    assert set(restored) == set(written)
+    assert _lexicon.load()[1] == {"nvda": "ɛnviːdiːˈeɪ"}
+    assert _voicesettings.load() == ({"v": {"rate": 80}}, ["v"])
+
+
+def test_restoring_something_that_is_not_a_backup_is_refused(tmp_path):
+    import zipfile
+    from synthDrivers.piper import _backup
+    other = tmp_path / "holiday-photos.zip"
+    with zipfile.ZipFile(other, "w") as archive:
+        archive.writestr("beach.jpg", b"not settings")
+    with pytest.raises(_backup.BackupError):
+        _backup.restore(str(other))
+
+
+def test_backup_never_carries_voices_or_cache():
+    """Voices download again and prepared audio rebuilds; only the settings
+    files are work a user cannot recreate."""
+    from synthDrivers.piper import _backup
+    assert all(name.endswith(".json") for name in _backup.FILES)
+    assert not any(name.endswith((".onnx", ".kcache")) for name in _backup.FILES)
+    assert os.path.basename(_paths.cache_file()) not in _backup.FILES
+
+
+def test_reset_keeps_downloaded_voices(tmp_path):
+    from synthDrivers.piper import _backup, _lexicon
+    _make_voice(_paths.voices_dir(), "en_US-lessac-medium")
+    _lexicon.save({"a": "b"})
+    _backup.reset()
+    assert _lexicon.load() == (0, {})
+    assert _paths.voice_installed("en_US-lessac-medium")

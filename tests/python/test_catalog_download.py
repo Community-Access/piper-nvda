@@ -161,3 +161,42 @@ def test_non_ascii_voice_urls_are_percent_encoded():
         assert "/pt/pt_PT/" in url
         url.encode("ascii")  # what urllib does; used to raise
     assert "tug%C3%A3o" in v.model_url
+
+
+def _catalog_voices():
+    return [_catalog.Voice(key, entry) for key, entry in SAMPLE_CATALOG.items()]
+
+
+def test_recommendation_prefers_the_users_language():
+    """Someone with no voices wants speech, not a list of 176 voices."""
+    voices = _catalog_voices()
+    assert _catalog.recommend(voices, "en_US").key == "en_US-lessac-medium"
+    assert _catalog.recommend(voices, "bn_BD").key == "bn_BD-google-medium"
+    # A regional tag falls back to the language.
+    assert _catalog.recommend(voices, "en_AU").key == "en_US-lessac-medium"
+    # Hyphens and case are the same thing.
+    assert _catalog.recommend(voices, "EN-us").key == "en_US-lessac-medium"
+
+
+def test_recommendation_gives_up_rather_than_guessing():
+    voices = _catalog_voices()
+    assert _catalog.recommend(voices, "xx_YY") is None
+    assert _catalog.recommend(voices, "") is None
+    assert _catalog.recommend([], "en_US") is None
+
+
+def test_recommendation_prefers_medium_then_the_smaller_download():
+    entry = dict(SAMPLE_CATALOG["en_US-lessac-medium"])
+    voices = []
+    for key, quality, size in (("en_US-a-high", "high", 100),
+                               ("en_US-b-medium", "medium", 90),
+                               ("en_US-c-medium", "medium", 60),
+                               ("en_US-d-low", "low", 10)):
+        data = dict(entry)
+        data["quality"] = quality
+        data["files"] = {
+            "en/en_US/x/%s.onnx" % key: {"size_bytes": size, "md5_digest": "a"},
+            "en/en_US/x/%s.onnx.json" % key: {"size_bytes": 1, "md5_digest": "b"},
+        }
+        voices.append(_catalog.Voice(key, data))
+    assert _catalog.recommend(voices, "en_US").key == "en_US-c-medium"

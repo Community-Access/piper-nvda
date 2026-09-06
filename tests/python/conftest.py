@@ -11,7 +11,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 if not hasattr(builtins, "_"):
     builtins._ = lambda s: s
 
-# Make `synthDrivers.piper` importable from the addon tree.
+# Make `synthDrivers.piper` and `globalPlugins.piperManager` importable
+# from the addon tree.
 sys.path.insert(0, os.path.join(ROOT, "addon"))
 # Make the stub NVDA modules importable (lower priority than real ones would
 # be inside NVDA, but here there are no real ones).

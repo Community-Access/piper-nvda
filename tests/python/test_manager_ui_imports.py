@@ -21,6 +21,8 @@ def manager():
     "PronunciationEntryDialog",
     "LanguageVoicesDialog",
     "PreparedAudioDialog",
+    "DownloadSeveralDialog",
+    "SettingsFilesDialog",
     "DemoPlayer",
     "open_manager",
     "prompt_first_run",

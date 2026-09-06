@@ -3,6 +3,42 @@
 All notable changes to this add-on are documented here. This project follows
 [Semantic Versioning](https://semver.org): major.minor.patch.
 
+## [1.0.0] - 2026-09-06
+
+The release that makes the add-on configurable rather than merely capable.
+
+### Added
+- **Three commands in NVDA's Input Gestures**, under "Piper Neural Voices":
+  open the voice manager, move to the next favourite voice, and turn
+  background preparation on or off. All unassigned, so nothing clashes with a
+  key you already use.
+- **Search and an "installed only" filter** in the voice manager. Searching
+  matches the voice name and its language, which turns 176 voices into a
+  handful.
+- **"Speak text"**: type anything and hear it in the voice you are looking at.
+  It tells you more than a hosted demo, and works for auditioning a
+  pronunciation fix or an expressiveness setting too.
+- **Favourite voices**, and a command that cycles them. Before any favourite
+  is chosen it cycles all installed voices, so it is useful immediately.
+- **A first run that produces speech.** With no voices installed, Piper offers
+  the best match for your NVDA language directly rather than opening a
+  catalogue of 176 voices.
+- **Settings remembered per voice**: rate, rate boost, pitch, volume, speaker,
+  and the expressiveness controls follow the voice they were set for. A voice
+  you have not adjusted keeps whatever is set, so switching to a new voice
+  never changes how it sounds by itself. It can be turned off.
+- **"Download several"**, a checklist of everything the current filters show,
+  for setting up more than one language in a pass.
+- **Back up and restore**, saving your pronunciations, language voices,
+  prepared phrases and per-voice settings to one file. Voices and prepared
+  audio are left out: both can be produced again. The same dialog can reset
+  every setting, after asking, keeping your voices.
+
+### Changed
+- Rate boost reaches considerably further. It is off by default and changes
+  nothing until it is turned on, so ordinary rate settings sound exactly as
+  they did.
+
 ## [0.6.1] - 2026-09-06
 
 ### Fixed

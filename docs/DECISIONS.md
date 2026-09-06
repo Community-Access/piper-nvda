@@ -89,6 +89,58 @@ which halved the cost of preparing symbols, and a symbol name prepared once
 serves however NVDA chose to send it. The cache format version was raised so
 that files keyed the old way are discarded rather than never matching.
 
+## Settings are inherited, then remembered
+
+**Context.** NVDA keeps synthesizer settings per synthesizer. A rate that
+suits a fast low-quality voice is wrong for a slow high-quality one, and a
+multi-speaker voice forgot its speaker on every switch.
+
+**Decision.** Remember rate, rate boost, pitch, volume, speaker and the
+expressiveness controls per voice. A voice with nothing remembered keeps
+whatever is currently set, and gains an entry when it is left.
+
+**Consequences.** Switching to a voice you have used before restores how you
+had it; switching to one you have never adjusted changes nothing, which is
+the only behaviour that is never surprising. The alternative, resetting every
+voice to defaults, would have made the feature feel like a fault. It can be
+turned off for anyone who wants one rate everywhere. Writes happen on voice
+change and shutdown rather than on every setting change, because the settings
+ring produces a stream of them.
+
+## Gestures ship unassigned
+
+**Decision.** The three commands appear in NVDA's Input Gestures dialog under
+their own category with no keys bound.
+
+**Consequences.** Nothing the add-on adds can clash with a key a user already
+relies on, which for a screen reader user is a real risk rather than a
+theoretical one. The cost is that the commands are invisible until someone
+goes looking, which the user guide addresses.
+
+## Batch download is its own dialog
+
+**Context.** Downloading four languages meant four passes through the browser.
+The obvious fix is to make the voice list a checklist.
+
+**Decision.** Keep the main list a plain list and put the checklist in a
+separate "Download several" dialog, filled from whatever the filters currently
+show.
+
+**Consequences.** Browsing 176 voices does not announce a checkbox state on
+every item, which is the cost a checklist would impose on the common case for
+the benefit of the rare one. The batch dialog reuses the same shape as the
+import dialog, so there is one accessible pattern rather than two.
+
+## A backup holds only what cannot be recreated
+
+**Decision.** Back up the lexicon, language assignments, prepared phrases and
+per-voice settings. Not voices, and not prepared audio.
+
+**Consequences.** The file stays small enough to email, and restoring it is
+quick. Voices download again and prepared audio rebuilds itself, so including
+them would trade a portable settings file for an unwieldy archive of things
+the add-on can produce on its own.
+
 ## The prepared list is extensible, and the whole cache is optional
 
 **Context.** The built-in warmup list is what every NVDA user hears: control

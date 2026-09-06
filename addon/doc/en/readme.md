@@ -20,6 +20,16 @@ Visual C++ runtime the speech engine uses ships inside the add-on.
 The voice manager can be reopened any time from the Tools menu to add or
 remove voices.
 
+With no voices installed, Piper offers the best match for your NVDA language
+straight away rather than opening a list of 176 voices.
+
+## Commands
+
+Three commands appear in NVDA's Input Gestures dialog under "Piper Neural
+Voices", all unassigned so you can choose your own keys: open the voice
+manager, move to the next favourite voice, and turn background preparation of
+audio on or off.
+
 ## Settings
 
 - Voice: any installed Piper voice, across all downloaded languages.
@@ -31,6 +41,8 @@ remove voices.
   trained; lower is flatter and steadier, higher is more animated.
 - Pause between sentences: silence after a sentence; clause endings get a
   shorter share of it, and pauses shorten with the rate.
+- Remember settings for each voice: on by default; rate, pitch, speaker and
+  the rest follow the voice they were set for.
 - Prepare audio in the background: on by default; turn it off to trade
   instant echo for disk and memory.
 - Show advanced voice parameters: replaces Expressiveness with Piper's own
@@ -55,6 +67,12 @@ A few published voices (Hebrew, Japanese, Thai, Ukrainian, and two Chinese
 voices) were built with a language-specific text processor this add-on does
 not include. They are refused before download rather than spoken as noise;
 other voices in those languages work normally.
+
+The voice manager has a search field, an "installed only" filter, a "Speak
+text" field for hearing a voice say your own words, favourites, and a
+"Download several" checklist for setting up more than one language at a time.
+"Back up or restore" saves your pronunciations, language voices, prepared
+phrases and per-voice settings to one file, or resets them.
 
 The voice manager can also reuse voices you already have. "Import voices"
 finds voices installed by the Sonata and Dengjen add-ons and copies them in,

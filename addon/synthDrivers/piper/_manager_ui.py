@@ -22,6 +22,7 @@ except Exception:  # pragma: no cover
 
 from . import (
     _audio,
+    _backup,
     _catalog,
     _download,
     _helperProc,
@@ -31,6 +32,7 @@ from . import (
     _paths,
     _protocol as proto,
     _voices,
+    _voicesettings,
     _warmup,
 )
 
@@ -45,17 +47,54 @@ def _announce(message):
             pass
 
 
+def _recommended_voice():
+    """The voice to offer on a first run, for NVDA's own language."""
+    try:
+        import languageHandler
+        language = languageHandler.getLanguage()
+    except Exception:
+        language = "en"
+    try:
+        _catalog.download_catalog()
+    except Exception:
+        log.exception("piper: catalog download failed")
+    return _catalog.recommend(_catalog.load_catalog(), language)
+
+
 def prompt_first_run():
-    """Offer to open the voice browser when no voices are installed."""
-    result = gui.messageBox(
-        # Translators: shown when Piper has no voices yet.
-        _("Piper has no voices installed yet. Open the voice manager to "
-          "download voices now?"),
-        _("Piper Neural Voices"),
-        wx.YES_NO | wx.ICON_QUESTION,
-    )
-    if result != wx.YES:
-        return False
+    """Offer a voice when none are installed.
+
+    Someone whose synthesizer has no voice wants speech, not a catalogue of
+    176 of them, so offer the best match for their language directly and keep
+    the browser as the alternative.
+    """
+    _announce(_("Looking for a voice for your language"))
+    voice = _recommended_voice()
+    if voice is not None:
+        result = gui.messageBox(
+            # Translators: {name} is a voice, {size} its size in megabytes.
+            _("Piper has no voices installed yet. Download {name}, "
+              "{size} MB, now?\n\n"
+              "Choose No to pick a different voice yourself.").format(
+                  name=voice.display_name,
+                  size=round((voice.model_size or 0) / _MB)),
+            _("Piper Neural Voices"),
+            wx.YES_NO | wx.ICON_QUESTION,
+        )
+        if result == wx.YES:
+            if _download_voice_with_progress(gui.mainFrame, voice):
+                return bool(_paths.installed_voice_keys())
+            return False
+    else:
+        result = gui.messageBox(
+            # Translators: shown when Piper has no voices yet.
+            _("Piper has no voices installed yet. Open the voice manager to "
+              "download voices now?"),
+            _("Piper Neural Voices"),
+            wx.YES_NO | wx.ICON_QUESTION,
+        )
+        if result != wx.YES:
+            return False
     open_manager()
     # After the modal browser closes, report whether anything got installed.
     return bool(_paths.installed_voice_keys())
@@ -124,7 +163,7 @@ class DemoPlayer:
         if msg_type in (proto.AUDIO, proto.MARKER, proto.DONE):
             self._pump.handle_frame(msg_type, payload)
 
-    def speak_text(self, model_path, text, lexicon=None):
+    def speak_text(self, model_path, text, lexicon=None):  # noqa: D401
         """Synthesize `text` with a voice, optionally under a draft lexicon.
 
         Used to audition a pronunciation before it is saved, so the user can
@@ -184,6 +223,7 @@ class VoiceBrowserDialog(wx.Dialog):
         self._demo = DemoPlayer()
         self._voices = []
         self._filtered = []
+        self._settings, self._favorites = _voicesettings.load()
 
         main = wx.BoxSizer(wx.VERTICAL)
 
@@ -204,6 +244,22 @@ class VoiceBrowserDialog(wx.Dialog):
         self._qualityChoice.Bind(wx.EVT_CHOICE, lambda e: self._refresh_list())
         filterRow.Add(self._qualityChoice, border=5, flag=wx.ALL)
         main.Add(filterRow, flag=wx.EXPAND)
+
+        # Searching is faster than filtering when you know what you want, and
+        # there are 176 voices.
+        searchRow = wx.BoxSizer(wx.HORIZONTAL)
+        # Translators: label for the voice search field.
+        searchRow.Add(wx.StaticText(self, label=_("&Search:")),
+                      border=5, flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL)
+        self._search = wx.TextCtrl(self, size=(220, -1))
+        self._search.Bind(wx.EVT_TEXT, lambda e: self._refresh_list())
+        searchRow.Add(self._search, border=5, flag=wx.ALL)
+        # Translators: checkbox limiting the list to downloaded voices.
+        self._installedOnly = wx.CheckBox(self, label=_("&Installed only"))
+        self._installedOnly.Bind(wx.EVT_CHECKBOX, lambda e: self._refresh_list())
+        searchRow.Add(self._installedOnly, border=5,
+                      flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL)
+        main.Add(searchRow, flag=wx.EXPAND)
 
         # Voice list.
         # Translators: label for the list of voices.
@@ -226,9 +282,31 @@ class VoiceBrowserDialog(wx.Dialog):
         # Translators: download the selected voice.
         self._actionBtn = wx.Button(self, label=_("&Download"))
         self._actionBtn.Bind(wx.EVT_BUTTON, self._on_action)
-        for b in (self._demoBtn, self._stopBtn, self._actionBtn):
+        # Translators: marks a voice as one of your favourites.
+        self._favBtn = wx.Button(self, label=_("&Favourite"))
+        self._favBtn.Bind(wx.EVT_BUTTON, self._on_favorite)
+        # Translators: opens the dialog for downloading several voices.
+        severalBtn = wx.Button(self, label=_("Download se&veral..."))
+        severalBtn.Bind(wx.EVT_BUTTON, self._on_download_several)
+        for b in (self._demoBtn, self._stopBtn, self._actionBtn, self._favBtn,
+                  severalBtn):
             btns.Add(b, border=4, flag=wx.ALL)
         main.Add(btns, flag=wx.ALIGN_CENTER)
+
+        # Hearing a voice say your own words tells you more than a demo does.
+        sampleRow = wx.BoxSizer(wx.HORIZONTAL)
+        # Translators: label for the field of text to speak as a sample.
+        sampleRow.Add(wx.StaticText(self, label=_("Speak &text:")),
+                      border=5, flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL)
+        self._sample = wx.TextCtrl(self, size=(300, -1),
+                                   style=wx.TE_PROCESS_ENTER)
+        self._sample.Bind(wx.EVT_TEXT_ENTER, self._on_speak_sample)
+        sampleRow.Add(self._sample, border=5, flag=wx.ALL)
+        # Translators: speaks the text typed beside it.
+        self._speakBtn = wx.Button(self, label=_("S&peak"))
+        self._speakBtn.Bind(wx.EVT_BUTTON, self._on_speak_sample)
+        sampleRow.Add(self._speakBtn, border=4, flag=wx.ALL)
+        main.Add(sampleRow, flag=wx.EXPAND)
 
         # Buttons for everything else the manager can do.
         tools = wx.BoxSizer(wx.HORIZONTAL)
@@ -247,10 +325,14 @@ class VoiceBrowserDialog(wx.Dialog):
         # Translators: manage the audio prepared in advance for instant echo.
         audioBtn = wx.Button(self, label=_("Prepared &audio..."))
         audioBtn.Bind(wx.EVT_BUTTON, self._on_prepared_audio)
+        # Translators: back up, restore, or reset the add-on's settings.
+        backupBtn = wx.Button(self, label=_("&Back up or restore..."))
+        backupBtn.Bind(wx.EVT_BUTTON, self._on_backup)
         # Translators: close the manager.
         closeBtn = wx.Button(self, wx.ID_CLOSE, label=_("&Close"))
         closeBtn.Bind(wx.EVT_BUTTON, lambda e: self.Close())
-        for b in (importBtn, fileBtn, lexBtn, langBtn, audioBtn, closeBtn):
+        for b in (importBtn, fileBtn, lexBtn, langBtn, audioBtn, backupBtn,
+                  closeBtn):
             tools.Add(b, border=4, flag=wx.ALL)
         main.Add(tools, flag=wx.ALIGN_CENTER)
 
@@ -305,18 +387,25 @@ class VoiceBrowserDialog(wx.Dialog):
         qidx = self._qualityChoice.GetSelection()
         if qidx > 0:
             sel_quality = self._qualityChoice.GetString(qidx)
+        search = self._search.GetValue().strip().lower()
+        installed_only = self._installedOnly.GetValue()
         self._filtered = [
             v for v in self._voices
             if (sel_lang is None or v.lang_english == sel_lang)
             and (sel_quality is None or v.quality == sel_quality)
+            and (not installed_only or v.installed)
+            and (not search or search in v.display_name.lower()
+                 or search in v.key.lower())
         ]
         labels = []
         for v in self._filtered:
             # Translators: shown after an installed voice's name.
             status = _(" [installed]") if v.installed else ""
+            # Translators: shown after a voice marked as a favourite.
+            favorite = _(" [favourite]") if v.key in self._favorites else ""
             size = (" - %d MB" % round(v.model_size / _MB)
                     if v.model_size else "")
-            labels.append(v.display_name + size + status)
+            labels.append(v.display_name + size + status + favorite)
         self._list.Set(labels)
         if labels:
             self._list.SetSelection(0)
@@ -333,6 +422,13 @@ class VoiceBrowserDialog(wx.Dialog):
         has = v is not None
         self._demoBtn.Enable(has)
         self._actionBtn.Enable(has)
+        self._favBtn.Enable(has and v.installed)
+        if has and v.installed and v.key in self._favorites:
+            # Translators: button that removes a voice from the favourites.
+            self._favBtn.SetLabel(_("Remove &favourite"))
+        else:
+            # Translators: button that makes a voice a favourite.
+            self._favBtn.SetLabel(_("&Favourite"))
         if has and v.installed:
             # Translators: button to remove the selected installed voice.
             self._actionBtn.SetLabel(_("&Remove"))
@@ -442,6 +538,64 @@ class VoiceBrowserDialog(wx.Dialog):
         dlg = LanguageVoicesDialog(self, installed)
         if dlg.ShowModal() == wx.ID_OK:
             _notify_synth("reload_language_voices")
+        dlg.Destroy()
+
+    def _on_favorite(self, evt):
+        """Add or remove the selected voice from the favourites ring."""
+        voice = self._selected_voice()
+        if voice is None:
+            return
+        if not voice.installed:
+            gui.messageBox(
+                # Translators: shown when marking a voice that is not there.
+                _("Download this voice before making it a favourite."),
+                _("Piper Neural Voices"), wx.OK | wx.ICON_INFORMATION, self)
+            return
+        if voice.key in self._favorites:
+            self._favorites.remove(voice.key)
+            # Translators: {name} is no longer a favourite.
+            _announce(_("{name} removed from favourites").format(
+                name=voice.name))
+        else:
+            self._favorites.append(voice.key)
+            # Translators: {name} is now a favourite.
+            _announce(_("{name} added to favourites").format(name=voice.name))
+        self._save_favorites()
+        self._refresh_list()
+        self._keep_selection(voice.key)
+
+    def _save_favorites(self):
+        try:
+            _voicesettings.save(self._settings, self._favorites)
+        except OSError:
+            log.exception("piper: saving favourites failed")
+            return
+        _notify_synth("reload_voice_settings")
+
+    def _on_speak_sample(self, evt):
+        """Speak whatever the user typed, in the voice they are looking at."""
+        text = self._sample.GetValue().strip()
+        model = self._preview_model()
+        if not text or model is None:
+            gui.messageBox(
+                # Translators: shown when there is nothing to speak with.
+                _("Type some text, and download a voice to hear it with."),
+                _("Piper Neural Voices"), wx.OK | wx.ICON_INFORMATION, self)
+            return
+        self._demo.speak_text(model, text)
+
+    def _on_download_several(self, evt):
+        """Queue up every voice the current filters show."""
+        if not self._filtered:
+            return
+        dlg = DownloadSeveralDialog(self, self._filtered)
+        dlg.ShowModal()
+        dlg.Destroy()
+        self._refresh_list()
+
+    def _on_backup(self, evt):
+        dlg = SettingsFilesDialog(self)
+        dlg.ShowModal()
         dlg.Destroy()
 
     def _on_prepared_audio(self, evt):
@@ -1023,3 +1177,170 @@ class PreparedAudioDialog(wx.Dialog):
                 _("Piper Neural Voices"), wx.OK | wx.ICON_ERROR, self)
             return
         self.EndModal(wx.ID_OK)
+
+
+class DownloadSeveralDialog(wx.Dialog):
+    """Download a batch of voices in one go.
+
+    Setting up several languages a voice at a time is tedious, and the main
+    list stays a plain list so that browsing it does not have to announce a
+    checkbox state on every item.
+    """
+
+    def __init__(self, parent, voices):
+        # Translators: title of the batch download dialog.
+        super().__init__(parent, title=_("Download several voices"),
+                         style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        self._voices = [v for v in voices if not v.installed]
+        main = wx.BoxSizer(wx.VERTICAL)
+        if not self._voices:
+            # Translators: shown when the filtered list is all installed.
+            main.Add(wx.StaticText(self, label=_(
+                "Every voice matching your filters is already installed.")),
+                border=5, flag=wx.ALL)
+        else:
+            # Translators: label for the list of voices to download.
+            main.Add(wx.StaticText(self, label=_("&Voices to download:")),
+                     border=5, flag=wx.ALL)
+        labels = [
+            # Translators: {name} is a voice and {size} its size in megabytes.
+            _("{name} - {size} MB").format(
+                name=v.display_name, size=round((v.model_size or 0) / _MB))
+            for v in self._voices
+        ]
+        self._list = wx.CheckListBox(self, choices=labels, size=(520, 260))
+        main.Add(self._list, proportion=1, border=5, flag=wx.ALL | wx.EXPAND)
+
+        btns = wx.BoxSizer(wx.HORIZONTAL)
+        # Translators: starts downloading the checked voices.
+        downloadBtn = wx.Button(self, wx.ID_OK, label=_("&Download"))
+        downloadBtn.Bind(wx.EVT_BUTTON, self._on_download)
+        downloadBtn.Enable(bool(self._voices))
+        btns.Add(downloadBtn, border=4, flag=wx.ALL)
+        btns.Add(wx.Button(self, wx.ID_CANCEL), border=4, flag=wx.ALL)
+        main.Add(btns, flag=wx.ALIGN_CENTER)
+
+        self.SetSizerAndFit(main)
+        self._list.SetFocus()
+
+    def _on_download(self, evt):
+        chosen = [self._voices[i] for i in self._list.GetCheckedItems()]
+        if not chosen:
+            self.EndModal(wx.ID_CANCEL)
+            return
+        done = 0
+        for voice in chosen:
+            if not _download_voice_with_progress(self, voice):
+                break
+            done += 1
+        # Translators: {done} of {total} voices were downloaded.
+        _announce(_("Downloaded {done} of {total} voices").format(
+            done=done, total=len(chosen)))
+        self.EndModal(wx.ID_OK)
+
+
+class SettingsFilesDialog(wx.Dialog):
+    """Back up, restore, or reset the settings a user has built up.
+
+    Voices download again and prepared audio rebuilds itself. Corrected
+    pronunciations, per-language voices, prepared phrases and per-voice
+    settings are the part that would have to be done again by hand.
+    """
+
+    def __init__(self, parent):
+        # Translators: title of the backup and restore dialog.
+        super().__init__(parent, title=_("Back up or restore settings"))
+        main = wx.BoxSizer(wx.VERTICAL)
+        # Translators: explains what is included in a backup.
+        main.Add(wx.StaticText(self, label=_(
+            "A backup holds your pronunciations, the voice you chose for each "
+            "language, the phrases you asked to have prepared, and your "
+            "per-voice settings. Voices themselves are not included; they can "
+            "be downloaded again.")), border=5, flag=wx.ALL)
+
+        btns = wx.BoxSizer(wx.VERTICAL)
+        # Translators: writes a settings backup file.
+        backupBtn = wx.Button(self, label=_("&Back up settings..."))
+        backupBtn.Bind(wx.EVT_BUTTON, self._on_backup)
+        # Translators: reads a settings backup file back in.
+        restoreBtn = wx.Button(self, label=_("&Restore settings..."))
+        restoreBtn.Bind(wx.EVT_BUTTON, self._on_restore)
+        # Translators: throws away all of the add-on's settings.
+        resetBtn = wx.Button(self, label=_("Reset all settings..."))
+        resetBtn.Bind(wx.EVT_BUTTON, self._on_reset)
+        for b in (backupBtn, restoreBtn, resetBtn):
+            btns.Add(b, border=4, flag=wx.ALL | wx.EXPAND)
+        main.Add(btns, border=5, flag=wx.ALL | wx.EXPAND)
+        main.Add(wx.Button(self, wx.ID_CANCEL, label=_("&Close")),
+                 border=5, flag=wx.ALL | wx.ALIGN_CENTER)
+        self.SetSizerAndFit(main)
+
+    def _on_backup(self, evt):
+        dlg = wx.FileDialog(
+            self,
+            # Translators: title of the save dialog for a settings backup.
+            message=_("Save your Piper settings"),
+            defaultFile="piper-settings.zip",
+            # Translators: the file type of a settings backup.
+            wildcard=_("Piper settings backup (*.zip)|*.zip"),
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+        if dlg.ShowModal() != wx.ID_OK:
+            dlg.Destroy()
+            return
+        path = dlg.GetPath()
+        dlg.Destroy()
+        try:
+            written = _backup.backup(path)
+        except _backup.BackupError as e:
+            self._failed(_("The backup could not be written: {error}"), e)
+            return
+        # Translators: {count} settings files were saved.
+        _announce(_("Backed up {count} settings files").format(
+            count=len(written)))
+
+    def _on_restore(self, evt):
+        dlg = wx.FileDialog(
+            self,
+            # Translators: title of the open dialog for a settings backup.
+            message=_("Choose a Piper settings backup"),
+            # Translators: the file type of a settings backup.
+            wildcard=_("Piper settings backup (*.zip)|*.zip"),
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
+        if dlg.ShowModal() != wx.ID_OK:
+            dlg.Destroy()
+            return
+        path = dlg.GetPath()
+        dlg.Destroy()
+        try:
+            restored = _backup.restore(path)
+        except _backup.BackupError as e:
+            self._failed(_("That backup could not be restored: {error}"), e)
+            return
+        self._reload()
+        # Translators: {count} settings files were read back in.
+        _announce(_("Restored {count} settings files").format(
+            count=len(restored)))
+
+    def _on_reset(self, evt):
+        result = gui.messageBox(
+            # Translators: asked before throwing settings away.
+            _("This deletes your pronunciations, language voices, prepared "
+              "phrases and per-voice settings. Your downloaded voices are "
+              "kept. Continue?"),
+            _("Piper Neural Voices"), wx.YES_NO | wx.ICON_WARNING, self)
+        if result != wx.YES:
+            return
+        removed = _backup.reset()
+        self._reload()
+        # Translators: {count} settings files were deleted.
+        _announce(_("Reset {count} settings files").format(count=len(removed)))
+
+    def _reload(self):
+        for method in ("reload_lexicon", "reload_language_voices",
+                       "reload_warmup_words", "reload_voice_settings"):
+            _notify_synth(method)
+
+    def _failed(self, template, error):
+        log.exception("piper: settings backup operation failed")
+        gui.messageBox(template.format(error=error), _("Piper Neural Voices"),
+                       wx.OK | wx.ICON_ERROR, self)

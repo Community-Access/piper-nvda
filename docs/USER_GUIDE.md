@@ -30,7 +30,14 @@ before downloading it.
    external source" and select the `.nvda-addon` file you downloaded.
 4. Confirm the installation and restart NVDA when prompted.
 
-## Downloading your first voice
+## Your first voice
+
+The first time you choose Piper with no voices installed, it offers the best
+match for your NVDA language directly: "Download English (United States),
+medium quality, 63 MB, now?" Answer yes and you have working speech in one
+step. Answer no and the voice manager opens so you can pick something else.
+
+## Downloading voices
 
 1. Open the NVDA menu (NVDA+N), Tools, "Piper voice manager".
 2. The manager loads the list of available voices. This may take a few seconds
@@ -66,7 +73,14 @@ change a value).
   single-speaker voices this is just "Default".
 - **Rate**: speech speed. It is applied by time-stretching, so it never
   changes the pitch.
-- **Rate boost**: extends the top speed for people who read very fast.
+- **Rate boost**: extends the top speed considerably, for people who read
+  very fast. It is off by default and changes nothing until you turn it on.
+- **Remember settings for each voice**: on by default. Rate, rate boost,
+  pitch, volume, speaker, and expressiveness are remembered against the voice
+  they were set for, so moving between a fast low-quality voice and a slow
+  high-quality one does not mean retuning every time. A voice you have not
+  adjusted yet simply keeps whatever is set, so switching to a new voice never
+  changes how it sounds by itself.
 - **Pitch**: raises or lowers the voice.
 - **Volume**: loudness of the voice.
 - **Expressiveness**: how much the voice varies its delivery. 50 is the
@@ -153,6 +167,52 @@ about 12 MB, measured on a mid-range laptop. It happens in the background and
 stops the moment there is real speech to say, so it is not a delay you wait
 through. Across several voices the total is capped at 64 MB; past that the
 least recently used audio is dropped.
+
+## Finding a voice quickly
+
+The voice manager has a Search field and an "Installed only" checkbox beside
+the language and quality filters. Searching matches the voice name and its
+language, so typing "ryan" or "welsh" narrows 176 voices to a handful.
+
+"Download several" opens a checklist of everything your current filters show,
+so setting up four languages is one pass rather than four. The main list stays
+a plain list, so browsing it does not announce a checkbox state on every item.
+
+## Hearing a voice say your own words
+
+The manager has a "Speak text" field. Type anything, press Speak, and you hear
+it in the voice you have selected. That tells you far more than the hosted
+demo does, and it works for auditioning a pronunciation fix or an
+expressiveness setting as well.
+
+## Favourite voices and switching between them
+
+Press "Favourite" on an installed voice to add it to your ring of favourites.
+The "Moves to the next favourite Piper voice" command cycles them. Before you
+have chosen any favourites, it cycles all your installed voices, so it is
+useful straight away.
+
+## Commands you can assign
+
+The add-on adds three commands to NVDA's Input Gestures dialog, under "Piper
+Neural Voices". None of them has a key assigned: picking keys for you risks
+clashing with something you already use, so choose your own in NVDA menu,
+Preferences, Input Gestures.
+
+- Opens the Piper voice manager.
+- Moves to the next favourite Piper voice.
+- Turns background preparation of Piper audio on or off.
+
+## Backing up your settings
+
+Voices can be downloaded again and prepared audio rebuilds itself. Your
+corrected pronunciations, the voice you chose for each language, the phrases
+you asked to have prepared, and your per-voice settings cannot. Press "Back up
+or restore" in the voice manager to save all of that to a single file, or to
+read one back on another machine.
+
+The same dialog can reset every setting the add-on holds, after asking. Your
+downloaded voices are kept.
 
 ## Fixing how a word is pronounced
 

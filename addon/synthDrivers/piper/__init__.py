@@ -46,6 +46,7 @@ from . import (
     _paths,
     _protocol as proto,
     _voices,
+    _voicesettings,
     _warmup,
 )
 
@@ -70,7 +71,10 @@ _SENTENCE_PAUSE_MAX_MS = 400
 _STRETCH_AT_MIN_RATE = 0.6
 _STRETCH_AT_MID_RATE = 1.0
 _STRETCH_AT_MAX_RATE = 2.0
-_RATE_BOOST_MAX_EXTRA = 0.5
+# Rate boost is opt-in, so it can reach much further than the ordinary rate
+# range without surprising anyone: at the top it roughly doubles again, which
+# is where the fastest readers live.
+_RATE_BOOST_MAX_EXTRA = 1.5
 
 
 class SynthDriver(SynthDriverBase):
@@ -93,6 +97,12 @@ class SynthDriver(SynthDriverBase):
                 availableInSettingsRing=True,
                 defaultVal=25,
                 minStep=5,
+            ),
+            BooleanDriverSetting(
+                "rememberPerVoice",
+                # Translators: keeps rate, pitch and the rest per voice.
+                _("&Remember settings for each voice"),
+                defaultVal=True,
             ),
             BooleanDriverSetting(
                 "useCache",
@@ -187,6 +197,8 @@ class SynthDriver(SynthDriverBase):
         self._variance = _clamp_percent(self._load_conf("variance", 50))
         self._sentencePause = _clamp_percent(self._load_conf("sentencePause", 25))
         self._useCache = bool(self._load_conf("useCache", True))
+        self._rememberPerVoice = bool(self._load_conf("rememberPerVoice", True))
+        self._voice_settings, self._favorites = _voicesettings.load()
         self._warmup_words = _warmup.load()
         self._advancedMode = bool(self._load_conf("advancedMode", False))
         self._noiseScale = _clamp_percent(self._load_conf("noiseScale", 50))
@@ -197,6 +209,7 @@ class SynthDriver(SynthDriverBase):
         self._voices = _voices.load_installed()
         self._voice_by_key = {v.key: v for v in self._voices}
         self._voice = self._voices[0].key if self._voices else ""
+        self._apply_voice_settings(self._voice)
         self._utterance_counter = 0
         self._lock = threading.Lock()
 
@@ -288,6 +301,8 @@ class SynthDriver(SynthDriverBase):
         self._lang_voices = _langvoices.load()
 
     def terminate(self):
+        self._store_voice_settings()
+        self._save_voice_settings()
         try:
             self._helper.terminate()
         except Exception:
@@ -573,10 +588,89 @@ class SynthDriver(SynthDriverBase):
         return self._voice
 
     def _set_voice(self, value):
-        if value in self._voice_by_key and value != self._voice:
-            self._voice = value
-            self._variant = "0"
-            self._request_warmup()
+        if value not in self._voice_by_key or value == self._voice:
+            return
+        self._store_voice_settings()
+        self._voice = value
+        self._variant = "0"
+        self._apply_voice_settings(value)
+        self._save_voice_settings()
+        self._request_warmup()
+
+    # -- per-voice settings ------------------------------------------------
+
+    def _store_voice_settings(self):
+        """Remember the current settings against the current voice.
+
+        Called when leaving a voice and on shutdown rather than on every
+        change, because the settings ring produces a stream of them.
+        """
+        if not self._rememberPerVoice or not self._voice:
+            return
+        self._voice_settings[self._voice] = {
+            "rate": self._rate,
+            "rateBoost": self._rateBoost,
+            "pitch": self._pitch,
+            "volume": self._volume,
+            "variant": self._variant,
+            "variance": self._variance,
+            "noiseScale": self._noiseScale,
+            "noiseW": self._noiseW,
+            "lengthScale": self._lengthScale,
+        }
+
+    def _apply_voice_settings(self, voice_key):
+        """Restore what was remembered for a voice, if anything was.
+
+        A voice with nothing remembered keeps whatever is currently set, so
+        arriving at a voice for the first time never changes how it sounds.
+        """
+        if not self._rememberPerVoice:
+            return
+        stored = self._voice_settings.get(voice_key)
+        if not stored:
+            return
+        self._rate = _clamp_percent(stored.get("rate", self._rate))
+        self._rateBoost = bool(stored.get("rateBoost", self._rateBoost))
+        self._pitch = _clamp_percent(stored.get("pitch", self._pitch))
+        self._volume = _clamp_percent(stored.get("volume", self._volume))
+        self._variance = _clamp_percent(stored.get("variance", self._variance))
+        self._noiseScale = _clamp_percent(
+            stored.get("noiseScale", self._noiseScale))
+        self._noiseW = _clamp_percent(stored.get("noiseW", self._noiseW))
+        self._lengthScale = _clamp_percent(
+            stored.get("lengthScale", self._lengthScale))
+        variant = stored.get("variant")
+        if isinstance(variant, str):
+            self._variant = variant
+
+    def _save_voice_settings(self):
+        try:
+            _voicesettings.save(self._voice_settings, self._favorites)
+        except OSError:
+            log.exception("piper: saving per-voice settings failed")
+
+    # -- called by the voice manager and by gestures ----------------------
+
+    def reload_voice_settings(self):
+        """Re-read per-voice settings and favourites from disk."""
+        self._voice_settings, self._favorites = _voicesettings.load()
+        self._apply_voice_settings(self._voice)
+
+    def toggle_cache(self):
+        """Turn background preparation off or on. Returns the new state."""
+        self._set_useCache(not self._useCache)
+        return self._useCache
+
+    def next_favorite_voice(self):
+        """Move to the next favourite voice. Returns its name, or None."""
+        nxt = _voicesettings.next_favorite(
+            self._favorites, set(self._voice_by_key), self._voice)
+        if nxt is None:
+            return None
+        self._set_voice(nxt)
+        voice = self._voice_by_key.get(nxt)
+        return voice.display_name if voice else nxt
 
     def _getAvailableVoices(self):
         result = OrderedDict()
@@ -655,6 +749,20 @@ class SynthDriver(SynthDriverBase):
         if value != self._sentencePause:
             self._sentencePause = value
             self._save_conf("sentencePause", value)
+
+    def _get_rememberPerVoice(self):
+        return self._rememberPerVoice
+
+    def _set_rememberPerVoice(self, value):
+        value = bool(value)
+        if value == self._rememberPerVoice:
+            return
+        self._rememberPerVoice = value
+        self._save_conf("rememberPerVoice", value)
+        if value:
+            # Start from what is set now rather than from an empty record.
+            self._store_voice_settings()
+            self._save_voice_settings()
 
     def _get_useCache(self):
         return self._useCache

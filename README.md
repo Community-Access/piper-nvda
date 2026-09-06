@@ -14,6 +14,11 @@ cache that makes typing echo and navigation instant.
   32-bit NVDA (2025.x) and 64-bit NVDA (2026.1+).
 - Hear a demo of any voice before you download it.
 - Fix how any word is pronounced, in IPA phonemes, with a preview button.
+- Rate, pitch, speaker and expressiveness are remembered per voice.
+- Search the catalogue, hear a voice say your own words, keep favourites, and
+  download several voices at once.
+- Back up your pronunciations and settings to one file, and restore them
+  anywhere.
 - Choose which voice each language uses when NVDA switches language.
 - Reuse voices you already downloaded for the Sonata or Dengjen add-ons, or
   install a voice from a file with no internet connection at all.

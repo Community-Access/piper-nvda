@@ -222,6 +222,21 @@ words in its own output, so prosody around the substitution is unaffected.
 The driver owns the file (`lexicon.json`) and pushes the whole map to the
 helper on connect, on helper restart, and whenever the user saves an edit.
 
+## Settings that belong to a voice
+
+NVDA keeps synthesizer settings per synthesizer, so rate, pitch and the rest
+are shared by every voice. `voice_settings.json` records them per voice key
+instead, along with the favourites ring. The rule is inherit-then-remember: a
+voice with no entry keeps whatever is currently set, so arriving at a voice
+for the first time never changes how it sounds, and it gains an entry when
+you leave it. Writes happen on voice change and on shutdown rather than on
+every change, because the settings ring produces a stream of them.
+
+`_backup.py` bundles that file, the lexicon, the language assignments and the
+prepared phrases into one zip. Voices and prepared audio are deliberately
+left out: both can be produced again, and both are large. Restoring reads
+only the four known names, so an archive cannot write anywhere else.
+
 ## Per-language voices
 
 Automatic language switching picks a voice for the language NVDA announces.

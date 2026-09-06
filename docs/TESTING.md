@@ -103,6 +103,15 @@ Run through this matrix on each supported configuration:
 |------|-------|
 | Install | Add-on installs and loads with no errors in the log |
 | Voice manager | Opens from Tools; catalog loads; language filter works |
+| Search | Typing in Search narrows the list; "Installed only" hides the rest |
+| Speak text | Typing text and pressing Speak reads it in the selected voice |
+| Favourites | Marking a voice adds "[favourite]" and the next-favourite command cycles them |
+| Download several | The checklist shows only voices not installed, and downloads all the checked ones |
+| First run | With no voices, Piper offers the right voice for the NVDA language and installs it in one step |
+| Per-voice settings | Rate set on one voice returns when you come back to it; a voice you have never adjusted keeps the current settings |
+| Backup and restore | A backup written on one machine restores pronunciations, language voices, prepared phrases and per-voice settings on another |
+| Reset | Resetting clears the settings and keeps the downloaded voices |
+| Gestures | All three commands appear in Input Gestures under "Piper Neural Voices" and work once bound |
 | Demo | "Play demo" plays a sample; "Stop demo" stops it; works while a different synth is active |
 | Download | Voice downloads with progress; cancel works; installed status updates |
 | Select synth | Piper appears in Speech settings and speaks |
@@ -132,7 +141,8 @@ Run through this matrix on each supported configuration:
 
 Automated tests can only prove the manager's dialogs import. Every dialog
 (voice manager, Import voices, Pronunciations, Pronunciation entry, Language
-voices) needs a keyboard-only pass before release:
+voices, Prepared audio, Download several, Back up or restore) needs a
+keyboard-only pass before release:
 
 | Check | Expectation |
 |-------|-------------|
