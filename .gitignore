@@ -1,0 +1,10 @@
+assets/
+helper/target/
+dist/
+build/
+__pycache__/
+*.pyc
+*.nvda-addon
+addon/synthDrivers/kokoro/bin/
+*.wav
+.pytest_cache/
