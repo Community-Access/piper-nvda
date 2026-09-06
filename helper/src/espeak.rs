@@ -108,8 +108,8 @@ impl Phonemizer {
                 out.push_str(clause);
             }
         }
-        // espeak marks embedded language switches like "(en)"; Kokoro's vocab
-        // has no parens for them mid-stream, and the tokenizer would keep the
+        // espeak marks embedded language switches like "(en)"; a voice's phoneme
+        // map has no parens for them mid-stream, and the id builder would keep the
         // paren chars, so strip those markers.
         Ok(strip_lang_switches(&out))
     }

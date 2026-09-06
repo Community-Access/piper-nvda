@@ -20,7 +20,7 @@ try:
     from logHandler import log
 except Exception:  # pragma: no cover
     import logging
-    log = logging.getLogger("kokoro")
+    log = logging.getLogger("piper")
 
 # Sentinels for the feeder queue.
 _DONE = ("done",)
@@ -39,7 +39,7 @@ class AudioPump:
         self._q = queue.Queue()
         self._buffer = bytearray()
         self._thread = threading.Thread(
-            target=self._feed_loop, name="kokoroFeeder", daemon=True
+            target=self._feed_loop, name="piperFeeder", daemon=True
         )
         self._thread.start()
 
@@ -102,7 +102,7 @@ class AudioPump:
             else:
                 self._player.feed(data)
         except Exception:
-            log.exception("kokoro: player.feed failed")
+            log.exception("piper: player.feed failed")
             if on_done is not None:
                 on_done()
 
@@ -110,18 +110,18 @@ class AudioPump:
         try:
             self._player.idle()
         except Exception:
-            log.exception("kokoro: player.idle failed")
+            log.exception("piper: player.idle failed")
         try:
             self._on_done()
         except Exception:
-            log.exception("kokoro: on_done callback failed")
+            log.exception("piper: on_done callback failed")
 
     def _make_index_cb(self, index):
         def cb():
             try:
                 self._on_index(index)
             except Exception:
-                log.exception("kokoro: on_index callback failed")
+                log.exception("piper: on_index callback failed")
         return cb
 
 

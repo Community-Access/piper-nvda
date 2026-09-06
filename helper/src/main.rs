@@ -2,6 +2,7 @@ mod cache;
 mod config;
 mod dsp;
 mod espeak;
+mod lexicon;
 mod mp3;
 mod protocol;
 mod server;
@@ -20,7 +21,6 @@ struct Args {
     say: Option<String>,
     out: PathBuf,
     bench: bool,
-    dml: bool,
     cache_dir: Option<PathBuf>,
 }
 
@@ -43,7 +43,6 @@ fn parse_args() -> Result<Args> {
         say: None,
         out: PathBuf::from("out.wav"),
         bench: false,
-        dml: false,
         cache_dir: None,
     };
     let mut it = std::env::args().skip(1);
@@ -60,7 +59,6 @@ fn parse_args() -> Result<Args> {
             "--out" => args.out = value("--out")?.into(),
             "--cache-dir" => args.cache_dir = Some(value("--cache-dir")?.into()),
             "--bench" => args.bench = true,
-            "--dml" => args.dml = true,
             other => bail!("unknown flag {other}"),
         }
     }
@@ -85,7 +83,6 @@ fn main() -> Result<()> {
         espeak_dll: args.espeak_dll,
         espeak_data: args.espeak_data,
         threads: args.threads,
-        dml: args.dml,
         cache_dir: args.cache_dir,
     })
 }
@@ -101,7 +98,7 @@ fn synth_all(
     let mut all = Vec::new();
     for chunk in text::split_clauses(text_in) {
         let ipa = phon.to_ipa(&chunk)?;
-        if let Some(s) = engine.synth(model, &ipa, 0)? {
+        if let Some(s) = engine.synth(model, &ipa, 0, 1.0)? {
             let out_sr = server::OUTPUT_SR as u32;
             let resampled = if s.sample_rate == out_sr {
                 s.samples
@@ -116,7 +113,7 @@ fn synth_all(
 
 fn say(args: &Args) -> Result<()> {
     let model = args.model.clone().context("--say requires --model")?;
-    let mut engine = synth::Engine::new(args.threads, args.dml);
+    let mut engine = synth::Engine::new(args.threads);
     let mut phon = espeak::Phonemizer::new(&args.espeak_dll, &args.espeak_data)?;
     let text_in = args.say.as_deref().unwrap();
     let start = Instant::now();
@@ -133,7 +130,7 @@ fn say(args: &Args) -> Result<()> {
 
 fn bench(args: &Args) -> Result<()> {
     let model = args.model.clone().context("--bench requires --model")?;
-    let mut engine = synth::Engine::new(args.threads, args.dml);
+    let mut engine = synth::Engine::new(args.threads);
     let mut phon = espeak::Phonemizer::new(&args.espeak_dll, &args.espeak_data)?;
     let _ = synth_all(&mut engine, &mut phon, &model, "warm up")?;
     for text_in in ["a", "Edit.", "File explorer window.",

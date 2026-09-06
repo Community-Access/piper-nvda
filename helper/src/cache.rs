@@ -32,7 +32,7 @@ pub struct AudioCache {
 
 impl AudioCache {
     pub fn new(cache_dir: Option<&Path>) -> Self {
-        let path = cache_dir.map(|d| d.join("kokoro-audio.kcache"));
+        let path = cache_dir.map(|d| d.join("piper-audio.kcache"));
         let mut cache = Self {
             map: HashMap::new(),
             clock: 0,
@@ -44,14 +44,16 @@ impl AudioCache {
     }
 
     /// Build a cache key from the fields that change model output. DSP-only
-    /// fields (pitch, volume, stretch) are intentionally excluded.
-    pub fn key(voice: &str, blend: Option<&str>, amount: u32, lang: &str,
-               char_mode: bool, speed: f32, text: &str) -> String {
+    /// fields (pitch, volume, stretch) are intentionally excluded so one
+    /// entry serves every rate, pitch, and volume. `lexicon_rev` is 0 unless
+    /// the chunk contains a pronunciation override, so editing the lexicon
+    /// only invalidates the chunks it actually affects.
+    pub fn key(voice: &str, char_mode: bool, variance: f32, lexicon_rev: u64,
+               text: &str) -> String {
         format!(
-            "{voice}|{}|{amount}|{lang}|{}|{:.2}|{text}",
-            blend.unwrap_or(""),
+            "{voice}|{}|{:.2}|{lexicon_rev}|{text}",
             char_mode as u8,
-            speed,
+            variance,
         )
     }
 
@@ -187,7 +189,7 @@ mod tests {
     #[test]
     fn put_get_roundtrip() {
         let mut c = AudioCache::new(None);
-        let k = AudioCache::key("af_heart", None, 0, "en-us", false, 1.0, "a");
+        let k = AudioCache::key("lessac", false, 1.0, 0, "a");
         assert!(c.get(&k).is_none());
         c.put(k.clone(), vec![0.1, 0.2, 0.3]);
         assert_eq!(c.get(&k), Some(vec![0.1, 0.2, 0.3]));
@@ -195,12 +197,14 @@ mod tests {
 
     #[test]
     fn key_ignores_dsp_params() {
-        // pitch/volume are not part of the key; same text+voice+speed collide.
-        let a = AudioCache::key("v", None, 0, "en-us", false, 1.0, "a");
-        let b = AudioCache::key("v", None, 0, "en-us", false, 1.0, "a");
+        // pitch/volume/rate are not part of the key; they are applied as DSP
+        // after the cache, so the same text+voice collides on purpose.
+        let a = AudioCache::key("v", false, 1.0, 0, "a");
+        let b = AudioCache::key("v", false, 1.0, 0, "a");
         assert_eq!(a, b);
-        let diff = AudioCache::key("v", None, 0, "en-us", true, 1.0, "a");
-        assert_ne!(a, diff);
+        assert_ne!(a, AudioCache::key("v", true, 1.0, 0, "a"));
+        assert_ne!(a, AudioCache::key("v", false, 1.3, 0, "a"));
+        assert_ne!(a, AudioCache::key("v", false, 1.0, 9, "a"));
     }
 
     #[test]
@@ -225,9 +229,9 @@ mod tests {
 
     #[test]
     fn disk_persistence_roundtrip() {
-        let dir = std::env::temp_dir().join("koko_cache_test");
+        let dir = std::env::temp_dir().join("piper_cache_test");
         let _ = std::fs::create_dir_all(&dir);
-        let _ = std::fs::remove_file(dir.join("kokoro-audio.kcache"));
+        let _ = std::fs::remove_file(dir.join("piper-audio.kcache"));
         {
             let mut c = AudioCache::new(Some(&dir));
             c.put("hello".to_string(), vec![0.5, -0.5]);

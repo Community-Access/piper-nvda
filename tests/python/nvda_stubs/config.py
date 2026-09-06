@@ -6,7 +6,7 @@ class _Speech(dict):
         super().__init__()
         self["autoLanguageSwitching"] = True
         self["outputDevice"] = "default"
-        self["kokoro"] = {}
+        self["piper"] = {}
 
 
 conf = {"speech": _Speech()}

@@ -2,4 +2,4 @@
 
 import logging
 
-log = logging.getLogger("kokoro-test")
+log = logging.getLogger("piper-test")

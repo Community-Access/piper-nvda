@@ -1,6 +1,6 @@
 //! Text chunking. Long inputs are split into clause-sized pieces so the
 //! first audio arrives quickly and cancel has fine granularity, while
-//! punctuation is kept attached to its clause (Kokoro uses it for prosody).
+//! punctuation is kept attached to its clause (the model uses it for prosody).
 
 /// Hard cap per chunk in characters; far below the 510-phoneme model limit
 /// for any real language.

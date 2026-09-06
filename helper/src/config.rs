@@ -42,8 +42,6 @@ struct RawConfig {
     #[serde(default = "default_inference")]
     inference: InferenceCfg,
     phoneme_id_map: HashMap<String, Vec<i64>>,
-    #[serde(default = "one")]
-    num_speakers: usize,
 }
 
 fn default_inference() -> InferenceCfg {
@@ -53,10 +51,6 @@ fn default_inference() -> InferenceCfg {
         noise_w: def_noise_w(),
     }
 }
-fn one() -> usize {
-    1
-}
-
 /// A parsed voice config with the phoneme map keyed by the single Unicode
 /// character Piper uses as a phoneme (its keys are code points).
 pub struct VoiceConfig {
@@ -65,7 +59,6 @@ pub struct VoiceConfig {
     pub noise_scale: f32,
     pub length_scale: f32,
     pub noise_w: f32,
-    pub num_speakers: usize,
     pub phoneme_ids: HashMap<char, Vec<i64>>,
     pub bos: Vec<i64>,
     pub eos: Vec<i64>,
@@ -104,7 +97,6 @@ impl VoiceConfig {
             noise_scale: raw.inference.noise_scale,
             length_scale: raw.inference.length_scale,
             noise_w: raw.inference.noise_w,
-            num_speakers: raw.num_speakers,
             phoneme_ids,
             bos,
             eos,
@@ -145,7 +137,6 @@ mod tests {
         let cfg = VoiceConfig::load(&path).unwrap();
         assert_eq!(cfg.sample_rate, 22050);
         assert_eq!(cfg.espeak_voice, "en-us");
-        assert_eq!(cfg.num_speakers, 1);
         assert_eq!(cfg.bos, vec![1]);
         assert_eq!(cfg.eos, vec![2]);
         assert_eq!(cfg.pad, vec![0]);

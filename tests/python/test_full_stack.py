@@ -100,3 +100,92 @@ def test_play_demo_sample():
     assert player.fed_bytes > 10000  # decoded mp3 produced audio
     helper.terminate()
     pump.shutdown()
+
+
+class RecordingPlayer(FakePlayer):
+    """Keeps the audio it is fed so tests can compare two utterances."""
+
+    def __init__(self):
+        super().__init__()
+        self.audio = bytearray()
+
+    def feed(self, data, onDone=None):
+        self.audio += bytes(data)
+        super().feed(data, onDone)
+
+
+class _Session:
+    """A helper process wired to a pump, for tests that speak more than once."""
+
+    def __init__(self):
+        self.player = RecordingPlayer()
+        self.done = threading.Event()
+        self.pump = _audio.AudioPump(self.player, lambda i: None, self.done.set)
+        hello = threading.Event()
+
+        def on_frame(mt, payload):
+            if mt == proto.HELLO:
+                hello.set()
+            elif mt in (proto.AUDIO, proto.MARKER, proto.DONE):
+                self.pump.handle_frame(mt, payload)
+
+        self.helper = _helperProc.HelperProcess(HELPER, _espeak_args(),
+                                                on_frame=on_frame)
+        self.helper.start()
+        assert hello.wait(30)
+
+    def say(self, text, **segment):
+        """Speak `text` and return exactly the audio it produced."""
+        before = len(self.player.audio)
+        self.done.clear()
+        segment.update(text=text, modelPath=MODEL)
+        self.helper.send(proto.SPEAK, {
+            "utteranceId": 1,
+            "segments": [segment],
+            "indexesAfter": [],
+        })
+        assert self.done.wait(60)
+        return bytes(self.player.audio[before:])
+
+    def close(self):
+        self.helper.terminate()
+        self.pump.shutdown()
+
+
+def test_pronunciation_override_changes_the_audio():
+    """A lexicon entry must reach the model, not just the config file."""
+    session = _Session()
+    try:
+        plain = session.say("nvda")
+        assert plain
+
+        session.helper.send(proto.SET_LEXICON, {
+            "rev": 1,
+            "entries": {"nvda": "\u025bn vi\u02d0 di\u02d0 \u02c8e\u026a"},
+        })
+        overridden = session.say("nvda")
+        assert overridden != plain
+
+        # A word with no entry is unaffected by the lexicon.
+        assert session.say("hello") == session.say("hello")
+
+        # Clearing the lexicon restores the original pronunciation, served
+        # from the cache entry made before any override existed.
+        session.helper.send(proto.SET_LEXICON, {"rev": 2, "entries": {}})
+        assert session.say("nvda") == plain
+    finally:
+        session.close()
+
+
+def test_expressiveness_is_cached_separately():
+    """Variance is part of the cache key, so the same text at a different
+    expressiveness must be synthesized again rather than replayed."""
+    session = _Session()
+    try:
+        default = session.say("Testing expressiveness.")
+        flat = session.say("Testing expressiveness.", variance=0.4)
+        assert default and flat != default
+        # The original setting still hits its own cache entry unchanged.
+        assert session.say("Testing expressiveness.") == default
+    finally:
+        session.close()

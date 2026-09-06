@@ -1,4 +1,4 @@
-"""Manages the kokoro-helper child process: startup handshake, a reader
+"""Manages the piper-helper child process: startup handshake, a reader
 thread that dispatches inbound frames to callbacks, a ping watchdog, and
 automatic restart with backoff after a crash or hang.
 
@@ -17,7 +17,7 @@ try:
     from logHandler import log
 except Exception:  # pragma: no cover - outside NVDA
     import logging
-    log = logging.getLogger("kokoro")
+    log = logging.getLogger("piper")
 
 # Windows process creation flags (avoid importing the whole subprocess table).
 _CREATE_NO_WINDOW = 0x08000000
@@ -52,7 +52,7 @@ class HelperProcess:
         self._stopping = False
         self._spawn()
         self._watchdog = threading.Thread(
-            target=self._watchdog_loop, name="kokoroWatchdog", daemon=True
+            target=self._watchdog_loop, name="piperWatchdog", daemon=True
         )
         self._watchdog.start()
 
@@ -69,7 +69,7 @@ class HelperProcess:
         self._alive = True
         self._last_pong = time.monotonic()
         self._reader = threading.Thread(
-            target=self._read_loop, name="kokoroReader", daemon=True
+            target=self._read_loop, name="piperReader", daemon=True
         )
         self._reader.start()
 
@@ -123,7 +123,7 @@ class HelperProcess:
             try:
                 self._on_frame(msg_type, payload)
             except Exception:
-                log.exception("kokoro: on_frame callback failed")
+                log.exception("piper: on_frame callback failed")
         # Reader exited: the process died or is shutting down.
         if not self._stopping:
             self._handle_death()
@@ -157,7 +157,7 @@ class HelperProcess:
             except Exception:
                 continue
             if time.monotonic() - self._last_pong > _PING_INTERVAL + _PING_TIMEOUT:
-                log.warning("kokoro: helper unresponsive, restarting")
+                log.warning("piper: helper unresponsive, restarting")
                 self._handle_death()
 
     def _handle_death(self):
@@ -167,7 +167,7 @@ class HelperProcess:
         now = time.monotonic()
         self._restart_times = [t for t in self._restart_times if now - t < 60.0]
         if len(self._restart_times) >= _MAX_RESTARTS_PER_MINUTE:
-            log.error("kokoro: helper crashed too often; giving up")
+            log.error("piper: helper crashed too often; giving up")
             return
         self._restart_times.append(now)
         backoff = 0.5 * (2 ** (len(self._restart_times) - 1))
@@ -182,8 +182,8 @@ class HelperProcess:
             return
         try:
             self._spawn()
-            log.info("kokoro: helper restarted")
+            log.info("piper: helper restarted")
             if self._on_restart is not None:
                 self._on_restart()
         except Exception:
-            log.exception("kokoro: helper restart failed")
+            log.exception("piper: helper restart failed")

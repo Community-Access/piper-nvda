@@ -1,7 +1,7 @@
 """Resumable, md5-verified downloader for Piper voices.
 
 The engine (`download_url`) has no NVDA/wx dependency and is unit tested. The
-wx UI lives in _download_ui.py.
+wx UI lives in _manager_ui.py.
 """
 
 import hashlib

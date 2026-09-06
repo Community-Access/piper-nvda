@@ -5,6 +5,7 @@
 use crate::cache::AudioCache;
 use crate::dsp;
 use crate::espeak::Phonemizer;
+use crate::lexicon::{self, Lexicon, Piece};
 use crate::mp3;
 use crate::protocol::{self as p, msg_type};
 use crate::synth::Engine;
@@ -49,7 +50,6 @@ pub struct Paths {
     pub espeak_dll: std::path::PathBuf,
     pub espeak_data: std::path::PathBuf,
     pub threads: usize,
-    pub dml: bool,
     pub cache_dir: Option<std::path::PathBuf>,
 }
 
@@ -62,12 +62,16 @@ enum Job {
 struct Work {
     jobs: VecDeque<(u64, Job)>,
     warmup: VecDeque<WarmupItem>,
+    /// Pending lexicon replacement. Kept out of `jobs` so a cancel cannot
+    /// drop it.
+    lexicon: Option<p::SetLexicon>,
 }
 
 struct WarmupItem {
     model_path: String,
     text: String,
     char_mode: bool,
+    variance: f32,
 }
 
 struct Shared {
@@ -96,7 +100,7 @@ impl Shared {
 }
 
 pub fn run(paths: &Paths) -> Result<()> {
-    let engine = Engine::new(paths.threads, paths.dml);
+    let engine = Engine::new(paths.threads);
     let phonemizer = Phonemizer::new(&paths.espeak_dll, &paths.espeak_data)?;
 
     let stdout: Box<dyn Write + Send> = Box::new(BufWriter::new(std::io::stdout()));
@@ -153,9 +157,16 @@ pub fn run(paths: &Paths) -> Result<()> {
             msg_type::PING => shared.send(msg_type::PONG, &serde_json::json!({})),
             msg_type::LOAD_VOICE => {
                 if let Ok(lv) = serde_json::from_slice::<p::LoadVoice>(&payload) {
-                    enqueue_warmup(&shared, &lv.voice);
+                    enqueue_warmup(&shared, &lv.voice, lv.variance);
                 }
             }
+            msg_type::SET_LEXICON => match serde_json::from_slice::<p::SetLexicon>(&payload) {
+                Ok(sl) => {
+                    shared.work.lock().unwrap().lexicon = Some(sl);
+                    shared.cv.notify_one();
+                }
+                Err(e) => shared.error("badLexicon", e.to_string()),
+            },
             msg_type::HELLO => {}
             msg_type::SHUTDOWN => break,
             other => shared.log("warning", format!("unknown frame type {other}")),
@@ -170,6 +181,7 @@ pub fn run(paths: &Paths) -> Result<()> {
 enum Task {
     Job(u64, Job),
     Warmup(WarmupItem),
+    Lexicon(p::SetLexicon),
     Shutdown,
 }
 
@@ -178,6 +190,11 @@ fn next_task(shared: &Shared) -> Task {
     loop {
         if !shared.running.load(Ordering::SeqCst) {
             return Task::Shutdown;
+        }
+        // Lexicon edits apply before queued speech so a correction the user
+        // just made is audible on the next utterance.
+        if let Some(sl) = work.lexicon.take() {
+            return Task::Lexicon(sl);
         }
         if let Some((g, job)) = work.jobs.pop_front() {
             return Task::Job(g, job);
@@ -196,16 +213,20 @@ fn worker_loop(
     cache_dir: Option<std::path::PathBuf>,
 ) {
     let mut cache = AudioCache::new(cache_dir.as_deref());
+    let mut lex = Lexicon::new();
     loop {
         match next_task(&shared) {
             Task::Job(g, Job::Speak(speak)) => {
-                speak_job(&shared, &mut engine, &mut phonemizer, &mut cache, g, &speak);
+                speak_job(&shared, &mut engine, &mut phonemizer, &mut cache, &lex, g, &speak);
             }
             Task::Job(g, Job::Sample(uid, path)) => {
                 play_sample(&shared, g, uid, &path);
             }
+            Task::Lexicon(sl) => {
+                lex.set(sl.rev, sl.entries);
+            }
             Task::Warmup(item) => {
-                warm_one(&mut engine, &mut phonemizer, &mut cache, &item);
+                warm_one(&mut engine, &mut phonemizer, &mut cache, &lex, &item);
                 if shared.work.lock().unwrap().warmup.is_empty() {
                     cache.save();
                 }
@@ -218,13 +239,16 @@ fn worker_loop(
     }
 }
 
-fn enqueue_warmup(shared: &Shared, model_path: &str) {
+fn enqueue_warmup(shared: &Shared, model_path: &str, variance: f32) {
     let mut work = shared.work.lock().unwrap();
+    // Re-warming for a new voice or variance makes queued items pointless.
+    work.warmup.clear();
     for ch in WARMUP_CHARS.chars() {
         work.warmup.push_back(WarmupItem {
             model_path: model_path.to_string(),
             text: ch.to_string(),
             char_mode: true,
+            variance,
         });
     }
     for word in WARMUP_WORDS {
@@ -232,14 +256,41 @@ fn enqueue_warmup(shared: &Shared, model_path: &str) {
             model_path: model_path.to_string(),
             text: (*word).to_string(),
             char_mode: false,
+            variance,
         });
     }
     drop(work);
     shared.cv.notify_one();
 }
 
-fn cache_key(model_path: &str, char_mode: bool, text: &str) -> String {
-    AudioCache::key(model_path, None, 0, "", char_mode, 1.0, text)
+fn cache_key(
+    model_path: &str,
+    char_mode: bool,
+    variance: f32,
+    lexicon_rev: u64,
+    text: &str,
+) -> String {
+    AudioCache::key(model_path, char_mode, variance, lexicon_rev, text)
+}
+
+/// IPA for one chunk, with lexicon overrides spliced in around the runs of
+/// text espeak still handles.
+fn chunk_to_ipa(phonemizer: &mut Phonemizer, pieces: &[Piece]) -> Option<String> {
+    let mut ipa = String::new();
+    for piece in pieces {
+        let part = match piece {
+            Piece::Plain(text) => phonemizer.to_ipa(text).ok()?,
+            Piece::Ipa(text) => (*text).to_string(),
+        };
+        if part.is_empty() {
+            continue;
+        }
+        if !ipa.is_empty() && !ipa.ends_with(' ') {
+            ipa.push(' ');
+        }
+        ipa.push_str(&part);
+    }
+    Some(ipa)
 }
 
 /// Phonemize + infer one chunk, resampled to OUTPUT_SR. None if no phonemes.
@@ -248,10 +299,13 @@ fn synth_chunk(
     phonemizer: &mut Phonemizer,
     model_path: &str,
     sid: i64,
-    chunk: &str,
+    variance: f32,
+    pieces: &[Piece],
 ) -> Option<Vec<f32>> {
-    let ipa = phonemizer.to_ipa(chunk).ok()?;
-    let synth = engine.synth(Path::new(model_path), &ipa, sid).ok()??;
+    let ipa = chunk_to_ipa(phonemizer, pieces)?;
+    let synth = engine
+        .synth(Path::new(model_path), &ipa, sid, variance)
+        .ok()??;
     Some(resample(synth.samples, synth.sample_rate))
 }
 
@@ -266,9 +320,12 @@ fn warm_one(
     engine: &mut Engine,
     phonemizer: &mut Phonemizer,
     cache: &mut AudioCache,
+    lex: &Lexicon,
     item: &WarmupItem,
 ) {
-    let key = cache_key(&item.model_path, item.char_mode, &item.text);
+    let pieces = lex.split(&item.text);
+    let rev = if lexicon::has_override(&pieces) { lex.rev() } else { 0 };
+    let key = cache_key(&item.model_path, item.char_mode, item.variance, rev, &item.text);
     if cache.contains(&key) {
         return;
     }
@@ -279,7 +336,9 @@ fn warm_one(
     if phonemizer.set_language(&voice).is_err() {
         return;
     }
-    if let Some(samples) = synth_chunk(engine, phonemizer, &item.model_path, 0, &item.text) {
+    if let Some(samples) =
+        synth_chunk(engine, phonemizer, &item.model_path, 0, item.variance, &pieces)
+    {
         cache.put(key, samples);
     }
 }
@@ -293,6 +352,7 @@ fn speak_job(
     engine: &mut Engine,
     phonemizer: &mut Phonemizer,
     cache: &mut AudioCache,
+    lex: &Lexicon,
     g: u64,
     speak: &p::Speak,
 ) {
@@ -336,10 +396,14 @@ fn speak_job(
             if canceled(shared, g) {
                 return;
             }
-            let key = cache_key(&seg.model_path, seg.char_mode, chunk);
+            let pieces = lex.split(chunk);
+            let rev = if lexicon::has_override(&pieces) { lex.rev() } else { 0 };
+            let key = cache_key(&seg.model_path, seg.char_mode, seg.variance, rev, chunk);
             let mut audio = match cache.get(&key) {
                 Some(a) => a,
-                None => match synth_chunk(engine, phonemizer, &seg.model_path, seg.sid, chunk) {
+                None => match synth_chunk(
+                    engine, phonemizer, &seg.model_path, seg.sid, seg.variance, &pieces,
+                ) {
                     Some(a) => {
                         cache.put(key, a.clone());
                         a

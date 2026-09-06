@@ -35,6 +35,8 @@ def driver():
     d._volume = 90
     d._rateBoost = False
     d._variant = "0"
+    d._variance = 50
+    d._lang_voices = {}
     d._lock = threading.Lock()
     d._utterance_counter = 0
     return d
@@ -113,3 +115,30 @@ def test_available_voices(driver):
     voices = driver._getAvailableVoices()
     assert "en_US-lessac-medium" in voices
     assert voices["fr_FR-siwis-medium"].language == "fr_FR"
+
+
+def test_expressiveness_reaches_the_segment(driver):
+    # 50 is the voice as trained; the helper multiplies its noise scales.
+    assert driver._build_job(["hi"])["segments"][0]["variance"] == 1.0
+    driver._variance = 0
+    assert driver._build_job(["hi"])["segments"][0]["variance"] < 1.0
+    driver._variance = 100
+    assert driver._build_job(["hi"])["segments"][0]["variance"] > 1.0
+
+
+def test_assigned_language_voice_beats_the_default(driver):
+    # Two English voices are installed; without an assignment the first one
+    # wins, and with one the assigned voice does.
+    seq = [LangChangeCommand("en_US"), "hello"]
+    default = driver._build_job(seq)["segments"][0]["modelPath"]
+    assert default.endswith("en_US-lessac-medium.onnx")
+
+    driver._lang_voices = {"en_us": "en_US-libritts-high"}
+    assigned = driver._build_job(seq)["segments"][0]["modelPath"]
+    assert assigned.endswith("en_US-libritts-high.onnx")
+
+
+def test_assignment_to_a_missing_voice_is_ignored(driver):
+    driver._lang_voices = {"fr_fr": "fr_FR-uninstalled-low"}
+    seg = driver._build_job([LangChangeCommand("fr_FR"), "bonjour"])["segments"][0]
+    assert seg["modelPath"].endswith("fr_FR-siwis-medium.onnx")

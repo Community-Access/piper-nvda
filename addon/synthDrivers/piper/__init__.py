@@ -13,7 +13,7 @@ from collections import OrderedDict
 import config
 import nvwave
 import synthDriverHandler
-from autoSettingsUtils.driverSetting import BooleanDriverSetting, DriverSetting
+from autoSettingsUtils.driverSetting import NumericDriverSetting
 from autoSettingsUtils.utils import StringParameterInfo
 from logHandler import log
 from synthDriverHandler import (
@@ -33,11 +33,25 @@ from speech.commands import (
     VolumeCommand,
 )
 
-from . import _audio, _download, _helperProc, _paths, _protocol as proto, _voices
+from . import (
+    _audio,
+    _helperProc,
+    _langvoices,
+    _lexicon,
+    _paths,
+    _protocol as proto,
+    _voices,
+)
 
 SAMPLE_RATE = 22050
 
 _PITCH_SEMITONE_RANGE = 4.0
+# Expressiveness maps 0-100 onto a multiplier for the voice's trained noise
+# scales: 50 keeps the voice exactly as trained, lower is flatter and steadier
+# (easier to follow at speed), higher is more varied.
+_VARIANCE_AT_MIN = 0.4
+_VARIANCE_AT_MID = 1.0
+_VARIANCE_AT_MAX = 1.6
 _STRETCH_AT_MIN_RATE = 0.6
 _STRETCH_AT_MID_RATE = 1.0
 _STRETCH_AT_MAX_RATE = 2.0
@@ -55,11 +69,13 @@ class SynthDriver(SynthDriverBase):
         SynthDriverBase.RateBoostSetting(),
         SynthDriverBase.PitchSetting(),
         SynthDriverBase.VolumeSetting(),
-        BooleanDriverSetting(
-            "useGpu",
-            # Translators: optional GPU acceleration toggle.
-            _("Use &GPU acceleration (DirectML) if available"),
-            defaultVal=False,
+        NumericDriverSetting(
+            "variance",
+            # Translators: how much the voice varies its delivery.
+            _("&Expressiveness"),
+            availableInSettingsRing=True,
+            defaultVal=50,
+            minStep=5,
         ),
     )
 
@@ -85,7 +101,8 @@ class SynthDriver(SynthDriverBase):
         self._volume = 90
         self._rateBoost = False
         self._variant = "0"
-        self._useGpu = self._load_conf("useGpu", False)
+        self._variance = _clamp_percent(self._load_conf("variance", 50))
+        self._lang_voices = _langvoices.load()
 
         self._voices = _voices.load_installed()
         self._voice_by_key = {v.key: v for v in self._voices}
@@ -110,17 +127,15 @@ class SynthDriver(SynthDriverBase):
             _paths.HELPER_EXE, self._helper_args(),
             on_frame=self._on_frame, on_restart=self._on_helper_restart)
         self._helper.start()
+        self._send_lexicon()
         self._request_warmup()
 
     def _helper_args(self):
-        args = [
+        return [
             "--espeak-dll", _paths.ESPEAK_DLL,
             "--espeak-data", _paths.ESPEAK_DATA,
             "--cache-dir", _paths.cache_dir(),
         ]
-        if self._useGpu:
-            args.append("--dml")
-        return args
 
     def _prompt_install(self):
         try:
@@ -134,9 +149,28 @@ class SynthDriver(SynthDriverBase):
         model = _paths.voice_model_path(self._voice)
         if os.path.isfile(model):
             try:
-                self._helper.send(proto.LOAD_VOICE, {"voice": model})
+                self._helper.send(proto.LOAD_VOICE, {
+                    "voice": model,
+                    "variance": self._variance_factor(),
+                })
             except Exception:
                 pass
+
+    def _send_lexicon(self):
+        """Push the user's pronunciation overrides to the helper."""
+        try:
+            rev, entries = _lexicon.load()
+            self._helper.send(proto.SET_LEXICON, _lexicon.message(rev, entries))
+        except Exception:
+            log.exception("piper: could not send the pronunciation lexicon")
+
+    def reload_lexicon(self):
+        """Called by the voice manager after the user edits pronunciations."""
+        self._send_lexicon()
+
+    def reload_language_voices(self):
+        """Called by the voice manager after language assignments change."""
+        self._lang_voices = _langvoices.load()
 
     def terminate(self):
         try:
@@ -169,6 +203,7 @@ class SynthDriver(SynthDriverBase):
                 "piper helper: %s" % info.get("message"))
 
     def _on_helper_restart(self):
+        self._send_lexicon()
         self._request_warmup()
 
     def _on_index(self, index):
@@ -220,6 +255,7 @@ class SynthDriver(SynthDriverBase):
                 "breakMsBefore": 0,
                 "indexesBefore": [],
                 "charMode": char_mode,
+                "variance": self._variance_factor(),
             }
 
         def open_segment():
@@ -299,6 +335,19 @@ class SynthDriver(SynthDriverBase):
             stretch *= 1.0 + (rate / 100.0) * _RATE_BOOST_MAX_EXTRA
         return 1.0, round(stretch, 3)
 
+    def _variance_factor(self):
+        """Expressiveness percentage as a multiplier for the model's noise
+        scales. Part of the helper's cache key, so it is rounded to keep the
+        cache from fragmenting on tiny differences."""
+        value = _clamp_percent(self._variance)
+        if value <= 50:
+            factor = _VARIANCE_AT_MIN + (value / 50.0) * (
+                _VARIANCE_AT_MID - _VARIANCE_AT_MIN)
+        else:
+            factor = _VARIANCE_AT_MID + ((value - 50) / 50.0) * (
+                _VARIANCE_AT_MAX - _VARIANCE_AT_MID)
+        return round(factor, 2)
+
     def _pitch_to_semitones(self, pitch):
         pitch = _clamp_percent(pitch)
         return round((pitch - 50) / 50.0 * _PITCH_SEMITONE_RANGE, 3)
@@ -312,8 +361,12 @@ class SynthDriver(SynthDriverBase):
             return 0
 
     def _model_for_lang(self, lang, base_model, base_sid):
-        key = _voices.default_voice_for_language(
-            self._voices, lang.replace("-", "_"))
+        # An explicit assignment from the voice manager wins; otherwise fall
+        # back to the first installed voice for that language.
+        key = _langvoices.resolve(self._lang_voices, lang, self._voice_by_key)
+        if key is None:
+            key = _voices.default_voice_for_language(
+                self._voices, lang.replace("-", "_"))
         if key and key in self._voice_by_key:
             return _paths.voice_model_path(key), 0
         return base_model, base_sid
@@ -384,26 +437,17 @@ class SynthDriver(SynthDriverBase):
                 _("Speaker {label}").format(label=label))
         return result
 
-    def _get_useGpu(self):
-        return self._useGpu
+    def _get_variance(self):
+        return self._variance
 
-    def _set_useGpu(self, value):
-        value = bool(value)
-        if value != self._useGpu:
-            self._useGpu = value
-            self._save_conf("useGpu", value)
-            self._restart_helper()
-
-    def _restart_helper(self):
-        try:
-            self._helper.terminate()
-        except Exception:
-            pass
-        self._helper = _helperProc.HelperProcess(
-            _paths.HELPER_EXE, self._helper_args(),
-            on_frame=self._on_frame, on_restart=self._on_helper_restart)
-        self._helper.start()
-        self._request_warmup()
+    def _set_variance(self, value):
+        value = _clamp_percent(value)
+        if value != self._variance:
+            self._variance = value
+            self._save_conf("variance", value)
+            # Cached audio is keyed by expressiveness, so re-warm the common
+            # words at the new setting instead of leaving echo uncached.
+            self._request_warmup()
 
     def _load_conf(self, key, default):
         try:

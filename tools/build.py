@@ -15,6 +15,9 @@ import subprocess
 import sys
 import zipfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import i18n  # noqa: E402  (same directory)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ADDON = os.path.join(ROOT, "addon")
 HELPER_DIR = os.path.join(ROOT, "helper")
@@ -45,13 +48,18 @@ def _copy(src, dst):
 def stage():
     if os.path.exists(BUILD):
         shutil.rmtree(BUILD)
+    # .po/.pot are translator sources; only the compiled .mo files ship.
     shutil.copytree(ADDON, BUILD,
-                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "_data"))
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc",
+                                                  "_data", "*.po", "*.pot"))
+    compiled = i18n.compile_locales(os.path.join(ADDON, "locale"),
+                                    os.path.join(BUILD, "locale"))
+    print("compiled %d translations" % len(compiled))
     bin_dir = os.path.join(BUILD, "synthDrivers", "piper", "bin")
     os.makedirs(bin_dir, exist_ok=True)
     _copy(os.path.join(RELEASE, "piper-helper.exe"),
           os.path.join(bin_dir, "piper-helper.exe"))
-    for dll in ("onnxruntime.dll", "DirectML.dll"):
+    for dll in ("onnxruntime.dll",):
         src = os.path.join(RELEASE, dll)
         if os.path.isfile(src):
             _copy(src, os.path.join(bin_dir, dll))

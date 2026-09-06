@@ -5,6 +5,8 @@ build/
 __pycache__/
 *.pyc
 *.nvda-addon
-addon/synthDrivers/kokoro/bin/
+addon/synthDrivers/piper/bin/
 *.wav
 .pytest_cache/
+# Compiled translations are a build product; .po files are the source.
+addon/locale/*/LC_MESSAGES/*.mo

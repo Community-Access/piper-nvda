@@ -25,7 +25,6 @@ struct Loaded {
 pub struct Engine {
     voices: HashMap<PathBuf, Loaded>,
     threads: usize,
-    use_dml: bool,
     clock: u64,
     max_loaded: usize,
 }
@@ -37,11 +36,10 @@ pub struct Synth {
 }
 
 impl Engine {
-    pub fn new(threads: usize, use_dml: bool) -> Self {
+    pub fn new(threads: usize) -> Self {
         Self {
             voices: HashMap::new(),
             threads,
-            use_dml,
             clock: 0,
             max_loaded: 3,
         }
@@ -56,11 +54,6 @@ impl Engine {
         let mut builder = ort_err(ort_err(ort_err(Session::builder())?
             .with_optimization_level(GraphOptimizationLevel::Level3))?
             .with_intra_threads(self.threads.max(1)))?;
-        if self.use_dml {
-            builder = ort_err(builder.with_execution_providers([
-                ort::ep::directml::DirectML::default().build(),
-            ]))?;
-        }
         let session = ort_err(builder.commit_from_file(model_path))
             .with_context(|| format!("loading model {}", model_path.display()))?;
         let has_sid = session.inputs().iter().any(|i| i.name() == "sid");
@@ -98,10 +91,18 @@ impl Engine {
         Ok(self.voices[model_path].config.espeak_voice.clone())
     }
 
-    /// Synthesize IPA phonemes with the given model at its default prosody.
-    /// Speed/rate is applied later as post-cache time-stretch, so length_scale
-    /// stays at the config default (keeps cached audio rate-independent).
-    pub fn synth(&mut self, model_path: &Path, ipa: &str, sid: i64) -> Result<Option<Synth>> {
+    /// Synthesize IPA phonemes with the given model. Speed/rate is applied
+    /// later as post-cache time-stretch, so length_scale stays at the config
+    /// default (keeps cached audio rate-independent). `variance` scales the
+    /// model's noise parameters: below 1.0 is flatter and steadier, above 1.0
+    /// is more varied.
+    pub fn synth(
+        &mut self,
+        model_path: &Path,
+        ipa: &str,
+        sid: i64,
+        variance: f32,
+    ) -> Result<Option<Synth>> {
         self.ensure_loaded(model_path)?;
         self.clock += 1;
         let clock = self.clock;
@@ -113,10 +114,11 @@ impl Engine {
             return Ok(None);
         }
         let n = ids.len();
+        let variance = variance.clamp(0.0, 2.0);
         let scales = vec![
-            loaded.config.noise_scale,
+            loaded.config.noise_scale * variance,
             loaded.config.length_scale,
-            loaded.config.noise_w,
+            loaded.config.noise_w * variance,
         ];
         let input = ort_err(Tensor::from_array(([1usize, n], ids)))?;
         let input_lengths = ort_err(Tensor::from_array(([1usize], vec![n as i64])))?;

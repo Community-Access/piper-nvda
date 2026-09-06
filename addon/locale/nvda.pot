@@ -1,0 +1,389 @@
+# Translation template for the Piper Neural Voices NVDA add-on.
+# Copyright (C) the Piper Neural Voices contributors.
+# This file is distributed under the same license as the add-on.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: piperNeural\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: tools/i18n.py\n"
+
+#. Translators: shown after an installed voice's name.
+#: synthDrivers/piper/_manager_ui.py:310
+msgid " [installed]"
+msgstr ""
+
+#. Translators: add a pronunciation entry.
+#: synthDrivers/piper/_manager_ui.py:610
+msgid "&Add..."
+msgstr ""
+
+#. Translators: choose the voice for the selected language.
+#: synthDrivers/piper/_manager_ui.py:774
+msgid "&Change voice..."
+msgstr ""
+
+#. Translators: close the manager.
+#: synthDrivers/piper/_manager_ui.py:245
+msgid "&Close"
+msgstr ""
+
+#. Translators: download the selected voice.
+#. Translators: button to download the selected voice.
+#: synthDrivers/piper/_manager_ui.py:224
+#: synthDrivers/piper/_manager_ui.py:335
+msgid "&Download"
+msgstr ""
+
+#. Translators: change the selected pronunciation entry.
+#: synthDrivers/piper/_manager_ui.py:613
+msgid "&Edit..."
+msgstr ""
+
+#. Translators: how much the voice varies its delivery.
+#: synthDrivers/piper/__init__.py:75
+msgid "&Expressiveness"
+msgstr ""
+
+#. Translators: button that copies the checked voices.
+#: synthDrivers/piper/_manager_ui.py:546
+msgid "&Import"
+msgstr ""
+
+#. Translators: import voices installed by other add-ons.
+#: synthDrivers/piper/_manager_ui.py:233
+msgid "&Import voices..."
+msgstr ""
+
+#. Translators: label for the language filter.
+#: synthDrivers/piper/_manager_ui.py:190
+msgid "&Language:"
+msgstr ""
+
+#. Translators: label for the list of languages.
+#: synthDrivers/piper/_manager_ui.py:766
+msgid "&Languages:"
+msgstr ""
+
+#. Translators: play a voice demo.
+#: synthDrivers/piper/_manager_ui.py:216
+msgid "&Play demo"
+msgstr ""
+
+#. Translators: speak the selected word using its new pronunciation.
+#: synthDrivers/piper/_manager_ui.py:619
+msgid "&Preview"
+msgstr ""
+
+#. Translators: label for the phonemes to speak instead.
+#: synthDrivers/piper/_manager_ui.py:722
+msgid "&Pronunciation (IPA phonemes):"
+msgstr ""
+
+#. Translators: label for the quality filter.
+#: synthDrivers/piper/_manager_ui.py:197
+msgid "&Quality:"
+msgstr ""
+
+#. Translators: button to remove the selected installed voice.
+#. Translators: delete the selected pronunciation entry.
+#: synthDrivers/piper/_manager_ui.py:332
+#: synthDrivers/piper/_manager_ui.py:616
+msgid "&Remove"
+msgstr ""
+
+#. Translators: choose the voice for the selected language.
+#: synthDrivers/piper/_manager_ui.py:626
+#: synthDrivers/piper/_manager_ui.py:776
+msgid "&Save"
+msgstr ""
+
+#. Translators: stop the demo.
+#: synthDrivers/piper/_manager_ui.py:219
+msgid "&Stop demo"
+msgstr ""
+
+#. Translators: label for the list of importable voices.
+#: synthDrivers/piper/_manager_ui.py:524
+msgid "&Voices found on this computer:"
+msgstr ""
+
+#. Translators: label for the list of voices.
+#: synthDrivers/piper/_manager_ui.py:207
+msgid "&Voices:"
+msgstr ""
+
+#. Translators: label for the word being given a pronunciation.
+#: synthDrivers/piper/_manager_ui.py:718
+msgid "&Word:"
+msgstr ""
+
+#. Translators: label for the list of pronunciation entries.
+#: synthDrivers/piper/_manager_ui.py:602
+msgid "&Words:"
+msgstr ""
+
+#. Translators: label for the language filter.
+#: synthDrivers/piper/_manager_ui.py:192
+#: synthDrivers/piper/_manager_ui.py:278
+msgid "All languages"
+msgstr ""
+
+#. Translators: label for the quality filter.
+#: synthDrivers/piper/_manager_ui.py:199
+#: synthDrivers/piper/_manager_ui.py:284
+msgid "All qualities"
+msgstr ""
+
+#. Translators: asked on uninstall.
+#: installTasks.py:18
+msgid "Also delete downloaded Piper voices and cache?"
+msgstr ""
+
+#. Translators: the option that restores automatic voice selection.
+#: synthDrivers/piper/_manager_ui.py:809
+msgid "Automatic"
+msgstr ""
+
+#. Translators: title of the file picker for installing a voice.
+#: synthDrivers/piper/_manager_ui.py:401
+msgid "Choose a Piper voice archive or model"
+msgstr ""
+
+#: synthDrivers/piper/_manager_ui.py:290
+msgid "Could not load the voice list. Check your internet connection."
+msgstr ""
+
+#. Translators: shown when a voice has a single speaker.
+#: synthDrivers/piper/__init__.py:426
+msgid "Default"
+msgstr ""
+
+#: synthDrivers/piper/_manager_ui.py:355
+msgid "Demo unavailable for this voice"
+msgstr ""
+
+#. Translators: shown when there are no voices to assign.
+#: synthDrivers/piper/_manager_ui.py:433
+msgid "Download at least one voice before assigning languages."
+msgstr ""
+
+#: synthDrivers/piper/_manager_ui.py:499
+msgid "Download cancelled"
+msgstr ""
+
+#: synthDrivers/piper/_manager_ui.py:493
+msgid "Download {pct} percent"
+msgstr ""
+
+#: synthDrivers/piper/_manager_ui.py:487
+msgid "Downloaded {pct}%"
+msgstr ""
+
+#. Translators: download dialog title.
+#: synthDrivers/piper/_manager_ui.py:459
+msgid "Downloading voice"
+msgstr ""
+
+#. Translators: {name} is the voice name.
+#: synthDrivers/piper/_manager_ui.py:461
+msgid "Downloading {name}..."
+msgstr ""
+
+#. Translators: example of the IPA phonemes expected in the field above.
+#: synthDrivers/piper/_manager_ui.py:727
+msgid "Example: NVDA spoken as en v ee d ee ay is ɛnviːdiːˈeɪ"
+msgstr ""
+
+#. Translators: add-on description
+#: manifest.ini
+msgid "Fast neural text-to-speech for NVDA using Piper voices. Runs fully offline in a bundled helper process. Browse, download, and hear demos of Piper voices in many languages directly from within NVDA. Correct how any word is pronounced, choose the voice for each language, and reuse voices from other Piper add-ons. Supports indexing, spelling, automatic language switching, multi-speaker voices, and fast rate boost."
+msgstr ""
+
+#. Translators: title of the import dialog.
+#: synthDrivers/piper/_manager_ui.py:519
+msgid "Import voices from other add-ons"
+msgstr ""
+
+#. Translators: {count} voices were copied in.
+#: synthDrivers/piper/_manager_ui.py:571
+msgid "Imported {count} voices"
+msgstr ""
+
+#. Translators: {error} explains why importing stopped.
+#: synthDrivers/piper/_manager_ui.py:567
+msgid "Importing failed: {error}"
+msgstr ""
+
+#. Translators: install a voice from a file on this computer.
+#: synthDrivers/piper/_manager_ui.py:236
+msgid "Install from &file..."
+msgstr ""
+
+#: synthDrivers/piper/_manager_ui.py:419
+msgid "Installed {count} voices"
+msgstr ""
+
+#: synthDrivers/piper/_manager_ui.py:506
+msgid "Installed {name}"
+msgstr ""
+
+#. Translators: choose which voice each language uses.
+#: synthDrivers/piper/_manager_ui.py:242
+msgid "Language &voices..."
+msgstr ""
+
+#. Translators: {language} is a language code such as en_US.
+#. Translators: title of the language assignment dialog.
+#: synthDrivers/piper/_manager_ui.py:814
+#: synthDrivers/piper/_manager_ui.py:753
+msgid "Language voices"
+msgstr ""
+
+#: synthDrivers/piper/_manager_ui.py:260
+msgid "Loading Piper voice list"
+msgstr ""
+
+#: synthDrivers/piper/_manager_ui.py:343
+msgid "Loading demo"
+msgstr ""
+
+#. Translators: shown when no other add-on's voices were found.
+#: synthDrivers/piper/_manager_ui.py:387
+msgid "No voices from other Piper add-ons were found. Sonata and Dengjen voices are detected automatically when those add-ons are installed."
+msgstr ""
+
+#. Translators: edit how particular words are pronounced.
+#: synthDrivers/piper/_manager_ui.py:239
+msgid "P&ronunciations..."
+msgstr ""
+
+#. Translators: asked on uninstall.
+#. Translators: shown when Piper has no voices yet.
+#. Translators: shown when there are no voices to assign.
+#. Translators: {error} explains why the file was rejected.
+#. Translators: {error} explains why importing stopped.
+#. Translators: {error} explains why saving failed.
+#. Translators: add-on summary
+#: installTasks.py:19
+#: synthDrivers/piper/_manager_ui.py:53
+#: synthDrivers/piper/_manager_ui.py:504
+#: synthDrivers/piper/_manager_ui.py:390
+#: synthDrivers/piper/_manager_ui.py:434
+#: synthDrivers/piper/_manager_ui.py:417
+#: synthDrivers/piper/_manager_ui.py:568
+#: synthDrivers/piper/_manager_ui.py:705
+#: synthDrivers/piper/_manager_ui.py:837
+#: manifest.ini
+msgid "Piper Neural Voices"
+msgstr ""
+
+#. Translators: title of the Piper voice browser.
+#: synthDrivers/piper/_manager_ui.py:179
+msgid "Piper Voice Manager"
+msgstr ""
+
+#. Translators: shown when Piper has no voices yet.
+#: synthDrivers/piper/_manager_ui.py:51
+msgid "Piper has no voices installed yet. Open the voice manager to download voices now?"
+msgstr ""
+
+#. Translators: Tools menu item opening the Piper voice manager.
+#: globalPlugins/piperManager/__init__.py:20
+msgid "Piper voice manager..."
+msgstr ""
+
+#. Translators: file types accepted when installing a voice.
+#: synthDrivers/piper/_manager_ui.py:403
+msgid "Piper voices (*.tar.gz;*.onnx)|*.tar.gz;*.tgz;*.onnx"
+msgstr ""
+
+#. Translators: title of the dialog for one pronunciation entry.
+#: synthDrivers/piper/_manager_ui.py:715
+msgid "Pronunciation entry"
+msgstr ""
+
+#. Translators: title of the pronunciation dialog.
+#: synthDrivers/piper/_manager_ui.py:585
+msgid "Pronunciations"
+msgstr ""
+
+#: synthDrivers/piper/_manager_ui.py:365
+msgid "Removed {name}"
+msgstr ""
+
+#. Translators: {word} was deleted from the pronunciation list.
+#: synthDrivers/piper/_manager_ui.py:685
+msgid "Removed {word}"
+msgstr ""
+
+#. Translators: {label} is a speaker name/number.
+#: synthDrivers/piper/__init__.py:437
+msgid "Speaker {label}"
+msgstr ""
+
+#. Translators: {error} explains why the file was rejected.
+#: synthDrivers/piper/_manager_ui.py:416
+msgid "That file could not be installed: {error}"
+msgstr ""
+
+#: synthDrivers/piper/_manager_ui.py:503
+msgid "The download failed: {error}"
+msgstr ""
+
+#. Translators: {error} explains why saving failed.
+#: synthDrivers/piper/_manager_ui.py:835
+msgid "The language assignments could not be saved: {error}"
+msgstr ""
+
+#. Translators: {error} explains why saving failed.
+#: synthDrivers/piper/_manager_ui.py:703
+msgid "The pronunciations could not be saved: {error}"
+msgstr ""
+
+#. Translators: {language} is a language code such as en_US.
+#: synthDrivers/piper/_manager_ui.py:813
+msgid "Voice for {language}"
+msgstr ""
+
+#. Translators: explains what the language list does.
+#: synthDrivers/piper/_manager_ui.py:762
+msgid "When NVDA switches language, Piper uses the voice assigned here."
+msgstr ""
+
+#. Translators: explains what the pronunciation list does.
+#: synthDrivers/piper/_manager_ui.py:597
+msgid "Words listed here are spoken using the phonemes you provide, instead of the pronunciation the voice would guess."
+msgstr ""
+
+#. Translators: no explicit voice is assigned to this language.
+#: synthDrivers/piper/_manager_ui.py:792
+msgid "automatic"
+msgstr ""
+
+#: synthDrivers/piper/_manager_ui.py:288
+msgid "{count} voices available"
+msgstr ""
+
+#. Translators: one row of the language list: {language} uses {voice}.
+#: synthDrivers/piper/_manager_ui.py:797
+msgid "{language}: {voice}"
+msgstr ""
+
+#. Translators: {name} is a voice, {source} the add-on it came from; this voice is already installed here.
+#: synthDrivers/piper/_manager_ui.py:531
+msgid "{name} (from {source}) - already installed"
+msgstr ""
+
+#. Translators: {name} is a voice, {source} the add-on it came from, {size} its size in megabytes.
+#: synthDrivers/piper/_manager_ui.py:536
+msgid "{name} (from {source}) - {size} MB"
+msgstr ""
+
+#. Translators: one pronunciation entry: {word} spoken as {ipa}.
+#: synthDrivers/piper/_manager_ui.py:639
+msgid "{word}: {ipa}"
+msgstr ""
+

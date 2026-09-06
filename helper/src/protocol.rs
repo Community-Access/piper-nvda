@@ -17,6 +17,7 @@ pub mod msg_type {
     pub const PING: u8 = 0x05;
     pub const SHUTDOWN: u8 = 0x06;
     pub const PLAY_SAMPLE: u8 = 0x07;
+    pub const SET_LEXICON: u8 = 0x08;
     pub const AUDIO: u8 = 0x81;
     pub const MARKER: u8 = 0x82;
     pub const DONE: u8 = 0x83;
@@ -59,6 +60,10 @@ pub struct Segment {
     pub indexes_before: Vec<i64>,
     #[serde(default)]
     pub char_mode: bool,
+    /// Expressiveness multiplier applied to the model's noise scales.
+    /// 1.0 keeps the voice's trained default.
+    #[serde(default = "one")]
+    pub variance: f32,
 }
 
 fn one() -> f32 {
@@ -81,10 +86,22 @@ pub struct Speak {
     pub indexes_after: Vec<i64>,
 }
 
+/// A replacement pronunciation lexicon. `rev` changes on every user edit.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetLexicon {
+    pub rev: u64,
+    #[serde(default)]
+    pub entries: std::collections::HashMap<String, String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoadVoice {
     pub voice: String,
+    /// Expressiveness the cache should be warmed at (see Segment::variance).
+    #[serde(default = "one")]
+    pub variance: f32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -214,6 +231,7 @@ mod tests {
         assert_eq!(speak.segments[0].indexes_before, vec![3]);
         assert_eq!(speak.segments[0].stretch, 1.0);
         assert_eq!(speak.segments[0].volume, 1.0);
+        assert_eq!(speak.segments[0].variance, 1.0);
         assert_eq!(speak.segments[0].sid, 0);
         assert!(!speak.segments[0].char_mode);
         assert_eq!(speak.indexes_after, vec![4]);
