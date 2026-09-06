@@ -72,11 +72,17 @@ class Dialog:
                 if title is not None:
                     self.title = _string_of(title)
                 continue
-            if not (isinstance(func, ast.Attribute)
+            if (isinstance(func, ast.Name)
+                    and func.id == "_CheckListBox"):
+                # NVDA's CustomCheckListBox behind a fallback alias; it is
+                # still a checkable list that needs a StaticText label.
+                control = "CheckListBox"
+            elif (isinstance(func, ast.Attribute)
                     and isinstance(func.value, ast.Name)
                     and func.value.id == "wx"):
+                control = func.attr
+            else:
                 continue
-            control = func.attr
             if control not in SELF_LABELLING | NEEDS_A_LABEL:
                 continue
             self.controls.append(control)

@@ -54,6 +54,11 @@ The release that makes the add-on configurable rather than merely capable.
   fails the load. The driver now registers the spec for every setting,
   including the advanced ones while hidden, before anything reads the
   section.
+- The checkable voice lists in "Download several" and "Import voices" never
+  spoke whether an item was checked: a plain wx checkable list does not
+  expose that state to a screen reader. Both now use NVDA's own checkable
+  list control, which announces "checked" and "not checked" on every item
+  and announces the change when space toggles one.
 - An empty list was announced as "unknown". The lists that can be empty
   (voice browser under a search with no matches, Pronunciations, Language
   voices, Prepared audio) now show a single "No entries" row instead, and

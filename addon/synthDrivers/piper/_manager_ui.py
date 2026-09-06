@@ -20,6 +20,16 @@ try:
 except Exception:  # pragma: no cover
     ui = None
 
+try:
+    # A plain wx.CheckListBox does not expose the checked state of its items
+    # to a screen reader, so the checkboxes are silent and the list reads as
+    # a plain list. NVDA's own replacement announces "checked" and
+    # "not checked" on every item and announces the change when space
+    # toggles one.
+    from gui.nvdaControls import CustomCheckListBox as _CheckListBox
+except Exception:  # pragma: no cover - outside NVDA (tests)
+    _CheckListBox = wx.CheckListBox
+
 from . import (
     _audio,
     _backup,
@@ -718,7 +728,7 @@ class ImportVoicesDialog(wx.Dialog):
                 labels.append(_("{name} (from {source}) - {size} MB").format(
                     name=voice.key, source=voice.source,
                     size=round(voice.size / _MB)))
-        self._list = wx.CheckListBox(self, choices=labels, size=(520, 260))
+        self._list = _CheckListBox(self, choices=labels, size=(520, 260))
         for i, voice in enumerate(voices):
             self._list.Check(i, not voice.installed)
         main.Add(self._list, proportion=1, border=5, flag=wx.ALL | wx.EXPAND)
@@ -1274,7 +1284,7 @@ class DownloadSeveralDialog(wx.Dialog):
                 name=v.display_name, size=round((v.model_size or 0) / _MB))
             for v in self._voices
         ]
-        self._list = wx.CheckListBox(self, choices=labels, size=(520, 260))
+        self._list = _CheckListBox(self, choices=labels, size=(520, 260))
         main.Add(self._list, proportion=1, border=5, flag=wx.ALL | wx.EXPAND)
 
         btns = wx.BoxSizer(wx.HORIZONTAL)
