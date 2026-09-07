@@ -15,6 +15,14 @@ No NVDA or wx dependency, so this is unit tested directly.
 
 import json
 
+try:
+    import addonHandler
+    addonHandler.initTranslation()
+except Exception:  # pragma: no cover - outside NVDA (tests, tools)
+    import builtins
+    if not hasattr(builtins, "_"):
+        builtins._ = lambda s: s
+
 #: Values of `phoneme_type` the helper can synthesize.
 SUPPORTED = frozenset({"espeak", "text"})
 

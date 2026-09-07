@@ -14,6 +14,14 @@ from scriptHandler import script
 import globalPluginHandler
 import ui
 
+try:
+    import addonHandler
+    addonHandler.initTranslation()
+except Exception:  # pragma: no cover - outside NVDA (tests, tools)
+    import builtins
+    if not hasattr(builtins, "_"):
+        builtins._ = lambda s: s
+
 # Translators: the category the add-on's commands appear under in NVDA's
 # Input Gestures dialog.
 CATEGORY = _("Piper Neural Voices")

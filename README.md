@@ -11,7 +11,7 @@ cache that makes typing echo and navigation instant.
   downloaded, no accounts, no telemetry.
 - A bundled 64-bit inference helper keeps heavy code out of NVDA, so a model
   fault can never crash your screen reader, and one build works on both
-  32-bit NVDA (2025.x) and 64-bit NVDA (2026.1+).
+  NVDA 2026.1 and later.
 - Hear a demo of any voice before you download it.
 - Fix how any word is pronounced, in IPA phonemes, with a preview button.
 - Rate, pitch, speaker and expressiveness are remembered per voice.
@@ -25,7 +25,7 @@ cache that makes typing echo and navigation instant.
 
 ## Requirements
 
-Windows 11 or later (64-bit) and NVDA 2025.1 or later. Nothing else: the
+Windows 11 or later (64-bit) and NVDA 2026.1 or later. Nothing else: the
 Visual C++ runtime the speech engine needs ships inside the add-on, and voices
 are downloaded on demand.
 

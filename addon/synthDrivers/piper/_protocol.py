@@ -64,5 +64,11 @@ def parse_audio(payload):
     return header, pcm
 
 
+def audio_utterance_id(payload):
+    """The utteranceId of an AUDIO payload, without copying the PCM."""
+    (hlen,) = struct.unpack("<H", payload[:2])
+    return json.loads(payload[2:2 + hlen]).get("utteranceId")
+
+
 def parse_json(payload):
     return json.loads(payload)

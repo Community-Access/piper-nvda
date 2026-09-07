@@ -11,6 +11,12 @@ import urllib.request
 from . import _catalog, _paths, _phonemes
 
 
+#: Socket timeout for every network operation, in seconds. Applied to the
+#: connection and to each read, so a stalled transfer raises rather than
+#: hanging the caller - which may be NVDA's main thread.
+TIMEOUT = 30
+
+
 class DownloadError(Exception):
     pass
 
@@ -47,7 +53,11 @@ def download_url(url, dest, expected_md5=None, expected_size=0,
     request = urllib.request.Request(url)
     if have:
         request.add_header("Range", "bytes=%d-" % have)
-    open_fn = opener or urllib.request.urlopen
+    # The socket timeout also bounds every read below, so a connection that
+    # stalls mid-download raises instead of hanging the progress loop with
+    # Cancel unreachable.
+    open_fn = opener or (
+        lambda req: urllib.request.urlopen(req, timeout=TIMEOUT))
     try:
         response = open_fn(request)
     except Exception as e:

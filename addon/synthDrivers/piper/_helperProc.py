@@ -40,7 +40,12 @@ class HelperProcess:
         self._proc = None
         self._reader = None
         self._write_lock = threading.Lock()
+        # Serializes death handling: the watchdog (on a hang) and the reader
+        # thread (on EOF after the watchdog's kill) both report the same
+        # death, and without the lock both would restart.
+        self._death_lock = threading.Lock()
         self._alive = False
+        self._gave_up = False
         self._last_pong = 0.0
         self._restart_times = []
         self._watchdog = None
@@ -69,7 +74,8 @@ class HelperProcess:
         self._alive = True
         self._last_pong = time.monotonic()
         self._reader = threading.Thread(
-            target=self._read_loop, name="piperReader", daemon=True
+            target=self._read_loop, args=(self._proc,),
+            name="piperReader", daemon=True
         )
         self._reader.start()
 
@@ -93,10 +99,8 @@ class HelperProcess:
 
     # -- io ----------------------------------------------------------------
 
-    def _read_exactly(self, n):
-        proc = self._proc
-        if proc is None:
-            return None
+    @staticmethod
+    def _read_exactly(proc, n):
         buf = b""
         while len(buf) < n:
             try:
@@ -108,10 +112,14 @@ class HelperProcess:
             buf += chunk
         return buf
 
-    def _read_loop(self):
-        while self._alive:
+    def _read_loop(self, proc):
+        """Serve one process for its whole life. Bound to the process it was
+        started for, never `self._proc`, so a reader that outlives a restart
+        cannot read from - or report the death of - the replacement."""
+        read = lambda n: self._read_exactly(proc, n)  # noqa: E731
+        while True:
             try:
-                frame = proto.read_frame(self._read_exactly)
+                frame = proto.read_frame(read)
             except Exception:
                 frame = None
             if frame is None:
@@ -126,7 +134,7 @@ class HelperProcess:
                 log.exception("piper: on_frame callback failed")
         # Reader exited: the process died or is shutting down.
         if not self._stopping:
-            self._handle_death()
+            self._handle_death(proc)
 
     def send(self, msg_type, obj):
         proc = self._proc
@@ -148,42 +156,57 @@ class HelperProcess:
     # -- resilience --------------------------------------------------------
 
     def _watchdog_loop(self):
-        while self._alive and not self._stopping:
+        while not self._stopping and not self._gave_up:
             time.sleep(_PING_INTERVAL)
-            if not self._alive or self._stopping:
+            if self._stopping or self._gave_up:
                 break
+            if not self._alive:
+                continue
             try:
                 self.send(proto.PING, {})
             except Exception:
                 continue
             if time.monotonic() - self._last_pong > _PING_INTERVAL + _PING_TIMEOUT:
                 log.warning("piper: helper unresponsive, restarting")
-                self._handle_death()
+                self._handle_death(self._proc)
 
-    def _handle_death(self):
-        if self._stopping:
-            return
-        self._alive = False
-        now = time.monotonic()
-        self._restart_times = [t for t in self._restart_times if now - t < 60.0]
-        if len(self._restart_times) >= _MAX_RESTARTS_PER_MINUTE:
-            log.error("piper: helper crashed too often; giving up")
-            return
-        self._restart_times.append(now)
-        backoff = 0.5 * (2 ** (len(self._restart_times) - 1))
-        proc = self._proc
-        if proc is not None:
+    def _handle_death(self, dead_proc):
+        """Handle the death (or hang) of `dead_proc`, restarting within the
+        budget. Both the watchdog and the dead process's reader thread call
+        this for the same event; the lock and the identity check make the
+        second caller a no-op instead of a second restart."""
+        with self._death_lock:
+            if self._stopping or dead_proc is None or dead_proc is not self._proc:
+                return
+            # Kill first: on a hang the process is still running, and it must
+            # not survive - especially not on the giving-up path, where a
+            # live orphan with a full stdin pipe would block send() forever.
             try:
-                proc.kill()
+                dead_proc.kill()
             except Exception:
                 pass
-        time.sleep(backoff)
-        if self._stopping:
-            return
-        try:
-            self._spawn()
-            log.info("piper: helper restarted")
-            if self._on_restart is not None:
-                self._on_restart()
-        except Exception:
-            log.exception("piper: helper restart failed")
+            self._alive = False
+            now = time.monotonic()
+            self._restart_times = [
+                t for t in self._restart_times if now - t < 60.0]
+            if len(self._restart_times) >= _MAX_RESTARTS_PER_MINUTE:
+                log.error("piper: helper crashed too often; giving up")
+                # send() must fail fast from here on, not write into a corpse.
+                self._proc = None
+                self._gave_up = True
+                return
+            self._restart_times.append(now)
+            backoff = 0.5 * (2 ** (len(self._restart_times) - 1))
+            time.sleep(backoff)
+            if self._stopping:
+                return
+            try:
+                self._spawn()
+                log.info("piper: helper restarted")
+            except Exception:
+                log.exception("piper: helper restart failed")
+                return
+        # Outside the lock: the driver's re-send callbacks go through send(),
+        # and holding the death lock across them invites deadlock.
+        if self._on_restart is not None:
+            self._on_restart()

@@ -11,9 +11,12 @@ import tempfile
 import threading
 import urllib.request
 
+import addonHandler
 import gui
 import wx
 from logHandler import log
+
+addonHandler.initTranslation()
 
 try:
     import ui
@@ -181,7 +184,10 @@ class DemoPlayer:
             _paths.HELPER_EXE,
             ["--espeak-dll", _paths.ESPEAK_DLL,
              "--espeak-data", _paths.ESPEAK_DATA,
-             "--cache-dir", _paths.cache_dir()],
+             # No cache dir: demos gain nothing from one, and sharing the
+             # live synthesizer's cache would let two processes overwrite
+             # each other's prepared audio.
+             ],
             on_frame=self._on_frame)
         self._helper.start()
 
@@ -472,7 +478,8 @@ class VoiceBrowserDialog(wx.Dialog):
 
         def worker():
             try:
-                data = urllib.request.urlopen(v.sample_url()).read()
+                data = urllib.request.urlopen(
+                    v.sample_url(), timeout=_download.TIMEOUT).read()
                 tmp = os.path.join(tempfile.gettempdir(),
                                    "piper_demo_%s.mp3" % v.key)
                 with open(tmp, "wb") as f:
@@ -491,10 +498,12 @@ class VoiceBrowserDialog(wx.Dialog):
         if v.installed:
             _download.remove_voice(v.key)
             _announce(_("Removed {name}").format(name=v.name))
+            _notify_synth("reload_installed_voices")
             self._refresh_list()
             self._keep_selection(v.key)
         else:
             if _download_voice_with_progress(self, v):
+                _notify_synth("reload_installed_voices")
                 self._refresh_list()
                 self._keep_selection(v.key)
 
@@ -519,6 +528,7 @@ class VoiceBrowserDialog(wx.Dialog):
             return
         dlg = ImportVoicesDialog(self, found)
         if dlg.ShowModal() == wx.ID_OK:
+            _notify_synth("reload_installed_voices")
             self._refresh_list()
         dlg.Destroy()
 
@@ -545,6 +555,7 @@ class VoiceBrowserDialog(wx.Dialog):
                 _("Piper Neural Voices"), wx.OK | wx.ICON_ERROR, self)
             return
         _announce(_("Installed {count} voices").format(count=len(keys)))
+        _notify_synth("reload_installed_voices")
         self._refresh_list()
 
     def _on_lexicon(self, evt):
@@ -591,8 +602,12 @@ class VoiceBrowserDialog(wx.Dialog):
         self._keep_selection(voice.key)
 
     def _save_favorites(self):
+        # Re-read the per-voice settings from disk: the live synthesizer may
+        # have saved newer values while this dialog was open, and writing
+        # the snapshot taken at construction would revert them.
         try:
-            _voicesettings.save(self._settings, self._favorites)
+            settings, _stale = _voicesettings.load()
+            _voicesettings.save(settings, self._favorites)
         except OSError:
             log.exception("piper: saving favourites failed")
             return
@@ -1156,13 +1171,12 @@ class PreparedAudioDialog(wx.Dialog):
     def _store(self, previous, text):
         if text is None:
             return
-        candidate = list(self._words)
-        if previous is not None and previous in candidate:
-            candidate[candidate.index(previous)] = text
-        else:
-            candidate.append(text)
-        cleaned = _warmup.clean(candidate)
-        if text.strip() and text.strip() not in cleaned:
+        # The same normalization clean() applies, so the checks below judge
+        # what would actually be stored rather than the raw keystrokes.
+        word = " ".join(text.split())
+        if not word:
+            return
+        if len(word) > _warmup.MAX_LENGTH:
             gui.messageBox(
                 # Translators: {limit} is the longest phrase allowed.
                 _("A phrase must be no longer than {limit} characters. "
@@ -1171,8 +1185,22 @@ class PreparedAudioDialog(wx.Dialog):
                       limit=_warmup.MAX_LENGTH),
                 _("Piper Neural Voices"), wx.OK | wx.ICON_INFORMATION, self)
             return
-        self._words = cleaned
-        self._refresh(text.strip())
+        others = [w for w in self._words if w != previous]
+        duplicate = next(
+            (w for w in others if w.lower() == word.lower()), None)
+        if duplicate is not None:
+            # Translators: the phrase is already listed as {word}.
+            _announce(_("Already in the list as {word}").format(
+                word=duplicate))
+            self._refresh(duplicate)
+            return
+        candidate = list(self._words)
+        if previous is not None and previous in candidate:
+            candidate[candidate.index(previous)] = word
+        else:
+            candidate.append(word)
+        self._words = _warmup.clean(candidate)
+        self._refresh(word)
 
     def _on_remove(self, evt):
         current = self._selected()
@@ -1309,6 +1337,8 @@ class DownloadSeveralDialog(wx.Dialog):
             if not _download_voice_with_progress(self, voice):
                 break
             done += 1
+        if done:
+            _notify_synth("reload_installed_voices")
         # Translators: {done} of {total} voices were downloaded.
         _announce(_("Downloaded {done} of {total} voices").format(
             done=done, total=len(chosen)))

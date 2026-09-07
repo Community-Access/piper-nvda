@@ -128,7 +128,10 @@ def download_catalog(opener=None):
     if os.path.isfile(dest) and os.path.getsize(dest) > 0:
         return dest
     os.makedirs(os.path.dirname(dest), exist_ok=True)
-    open_fn = opener or urllib.request.urlopen
+    # Timed out, because this can run during synthesizer initialization on a
+    # first run: a stalled connection here would be NVDA with no speech.
+    open_fn = opener or (
+        lambda url: urllib.request.urlopen(url, timeout=30))
     resp = open_fn(CATALOG_URL)
     data = resp.read()
     tmp = dest + ".part"

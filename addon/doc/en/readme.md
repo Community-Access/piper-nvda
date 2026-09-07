@@ -2,7 +2,7 @@
 
 Fast neural text-to-speech for NVDA using the Piper voices. Runs fully
 offline. Inference happens in a bundled 64-bit helper process, so it works on
-both 32-bit NVDA (2025.x) and 64-bit NVDA (2026.1+), and a crash in the model
+NVDA 2026.1 or later, and a crash in the model
 can never take down NVDA.
 
 Requires Windows 11 or later, 64-bit. Nothing else needs installing: the

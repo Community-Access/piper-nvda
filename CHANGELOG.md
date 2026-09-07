@@ -45,7 +45,41 @@ The release that makes the add-on configurable rather than merely capable.
   they would never hear. The helper's English list remains as the fallback
   for when NVDA cannot be asked.
 
+### Changed
+- **Requires NVDA 2026.1 or later.** The add-on is built for the 64-bit
+  NVDA era and is no longer offered to or tested on NVDA 2025.x; users on
+  2025.x can use Sonata or Dengjen instead.
+
 ### Fixed
+- The add-on's own translations could never load: no module called
+  `addonHandler.initTranslation()`, so every string fell back to English
+  regardless of installed translations. Every module now initializes the
+  add-on's catalog.
+- A stalled internet connection could hang NVDA. The voice catalogue is
+  fetched during synthesizer initialization on a first run, and neither it
+  nor voice downloads had a timeout; a download that stalled also made
+  Cancel unreachable. All network operations now time out after 30 seconds.
+- Two threads could restart a crashed or hung helper at the same time,
+  spawning duplicate processes and burning the restart budget twice per
+  crash; and after repeated hangs the hung process was left running in a
+  state that could block NVDA's main thread on the next utterance. Restarts
+  are now serialized, the dead process is always killed, and giving up
+  fails fast instead of freezing.
+- Removing or adding voices now updates the running synthesizer at once.
+  Removing the voice that was speaking previously left Piper silent, still
+  offering the deleted voice, until NVDA reloaded it; it now moves to an
+  installed voice immediately, and new downloads appear without a reload.
+- Interrupting speech could let a short burst of the cancelled utterance
+  play at the start of the next one, and a stale end-of-speech notice could
+  desynchronize say-all. Late frames from cancelled utterances are now
+  dropped on two levels.
+- Toggling a favourite while the voice manager was open no longer reverts
+  rate and pitch changes made since the manager opened.
+- Adding a prepared phrase with doubled spaces or a different case than an
+  existing entry no longer fails with an unrelated "too long" message; a
+  duplicate is announced as already listed.
+- The demo player no longer shares the prepared-audio store with the live
+  synthesizer, so demos cannot discard prepared audio.
 - The driver failed to load ("setSynth failed for piper ... KeyError:
   'sentencePause'") on the first launch after a new setting was added to an
   existing configuration. NVDA installs a driver's config spec only after

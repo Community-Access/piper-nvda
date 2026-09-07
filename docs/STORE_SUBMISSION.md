@@ -49,26 +49,24 @@ Follow [TESTING.md](TESTING.md) and complete its pre-release checklist. Then:
 
 NVDA 2026.1 is the first 64-bit NVDA and is a compatibility-breaking release:
 its `backCompatTo` is 2026.1.0, so an add-on is only offered to a 2026.1+ user
-when its `lastTestedNVDAVersion` is at least 2026.1.0. At the time of writing,
-2026.1 and 2026.2 are still marked `experimental` in nvdaAPIVersions.json.
+when its `lastTestedNVDAVersion` is at least 2026.1.0. Verified 2026-09-06:
+2026.1 and 2026.2 are both still `"experimental": true` in
+nvdaAPIVersions.json, even though both have shipped - the flag tracks when
+NV Access opens the stable channel for that API version, not the NVDA
+release date, and no "mark 2026.x as stable" commit exists yet.
 
 The store enforces this rule: **if `lastTestedNVDAVersion` refers to an
 experimental (beta/alpha) NVDA, the submission must use the `beta` or `dev`
-channel, not `stable`.** That creates a genuine either/or right now:
+channel, not `stable`.**
 
-- **Stable channel, 2025.x users:** set `lastTestedNVDAVersion = 2025.3.3`
-  (the newest non-experimental version). Works on NVDA 2025.1 through 2025.3.x.
-  It will not be offered to 2026.1 users.
-- **Beta or dev channel, 2026.1+ users:** set
-  `lastTestedNVDAVersion = 2026.1.0` (or 2026.2.0) and submit on `beta`.
-  Required to reach 64-bit NVDA users while those versions are experimental.
-
-Because this add-on's architecture (an always-x64 helper) is designed for the
-64-bit era, the natural path is a `beta`-channel release with
-`lastTestedNVDAVersion = 2026.1.0` now, then moving it to `stable` once 2026.1
-loses its experimental flag (re-check nvdaAPIVersions.json at submission time).
-`minimumNVDAVersion = 2025.1.0` keeps 2025.x users covered on the stable
-release. Keep the manifest and the store metadata in agreement.
+This add-on requires NVDA 2026.1 or later (`minimumNVDAVersion = 2026.1.0`):
+it is built for the 64-bit era and is not tested on 2025.x. That makes the
+channel decision mechanical: submit on `beta` with `lastTestedNVDAVersion =
+2026.1.0` (or the newest 2026.x actually verified) while those versions are
+experimental, and resubmit on `stable` once 2026.1 loses its experimental
+flag (re-check nvdaAPIVersions.json at submission time). Keep the manifest
+and the store metadata in agreement. Users on NVDA 2025.x should use Sonata
+or Dengjen instead; the store will not offer them this add-on.
 
 ## Step 2: build
 
@@ -160,6 +158,10 @@ this repository generates is the file to upload.
 
 ## Readiness before the first store submission
 
+A full pre-submission review of 1.0.0 - automated results, security posture,
+per-checklist answers, and the go/no-go call - is in
+[RELEASE_REVIEW_1.0.0.md](RELEASE_REVIEW_1.0.0.md).
+
 Known gaps at 1.0.0, none of which block a GitHub release but all of which are
 worth closing before asking users to depend on the add-on:
 
@@ -169,10 +171,9 @@ worth closing before asking users to depend on the add-on:
   documentation for translators exist; no language has been translated yet.
   English-only is acceptable for the store, but a screen reader add-on gets
   much wider use with translations.
-- **The manual NVDA matrix has not been run on both NVDA generations.** The
-  32-bit/64-bit claim rests on the helper being out-of-process, which is
-  sound, but it has not been exercised end to end on a 2025.x and a 2026.x
-  install.
+- **The manual NVDA matrix has only been run informally.** The add-on now
+  requires NVDA 2026.1+, so the matrix needs a full pass on 2026.1 and the
+  newest 2026.x before the version claimed in `lastTestedNVDAVersion`.
 - **The helper binary is unsigned.** Expect SmartScreen friction and possible
   VirusTotal false positives on the bundled native DLLs; the submission
   section above covers how NV Access handles that.

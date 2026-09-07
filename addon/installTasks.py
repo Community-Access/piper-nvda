@@ -4,6 +4,14 @@ empty. onUninstall optionally removes downloaded voices and cache."""
 import os
 import shutil
 
+try:
+    import addonHandler
+    addonHandler.initTranslation()
+except Exception:  # pragma: no cover - outside NVDA (tests, tools)
+    import builtins
+    if not hasattr(builtins, "_"):
+        builtins._ = lambda s: s
+
 
 def onUninstall():
     import globalVars

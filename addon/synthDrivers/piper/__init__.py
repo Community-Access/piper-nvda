@@ -11,6 +11,7 @@ import sys
 import threading
 from collections import OrderedDict
 
+import addonHandler
 import config
 import nvwave
 import synthDriverHandler
@@ -49,6 +50,10 @@ from . import (
     _voicesettings,
     _warmup,
 )
+
+# Load this add-on's own translation catalog; without this, _() resolves
+# against NVDA core's catalog and the add-on's translations never load.
+addonHandler.initTranslation()
 
 SAMPLE_RATE = 22050
 
@@ -244,6 +249,9 @@ class SynthDriver(SynthDriverBase):
         self._voice = self._voices[0].key if self._voices else ""
         self._apply_voice_settings(self._voice)
         self._utterance_counter = 0
+        # Utterances at or below this id were cancelled; late frames from
+        # them are dropped in _on_frame.
+        self._cancelled_upto = 0
         self._lock = threading.Lock()
 
         if not self._voices:
@@ -323,6 +331,26 @@ class SynthDriver(SynthDriverBase):
         self._warmup_words = _warmup.load()
         self._request_warmup()
 
+    def reload_installed_voices(self):
+        """Called by the voice manager after voices are added or removed.
+
+        Without this, the live synthesizer keeps offering a removed voice
+        and sending its deleted model path to the helper - silence until
+        NVDA reloads the synth - and a freshly downloaded voice does not
+        appear until then either.
+        """
+        with self._lock:
+            self._voices = _voices.load_installed()
+            self._voice_by_key = {v.key: v for v in self._voices}
+        if self._voice not in self._voice_by_key and self._voices:
+            # The speaking voice was removed: move to one that exists.
+            replacement = self._voices[0].key
+            self._voice = replacement
+            self._variant = "0"
+            self._apply_voice_settings(replacement)
+            self._save_voice_settings()
+        self._request_warmup()
+
     def rebuild_cache(self):
         """Throw the prepared audio away and prepare it again."""
         try:
@@ -358,6 +386,15 @@ class SynthDriver(SynthDriverBase):
 
     def _on_frame(self, msg_type, payload):
         if msg_type in (proto.AUDIO, proto.MARKER, proto.DONE):
+            # Frames from a cancelled utterance can still be in the pipe
+            # when CANCEL is sent; playing them would blurt a burst of the
+            # old utterance, and a stale DONE would end the new one early.
+            if msg_type == proto.AUDIO:
+                uid = proto.audio_utterance_id(payload)
+            else:
+                uid = proto.parse_json(payload).get("utteranceId")
+            if uid is not None and uid <= self._cancelled_upto:
+                return
             self._pump.handle_frame(msg_type, payload)
         elif msg_type == proto.ERROR:
             info = proto.parse_json(payload)
@@ -508,6 +545,8 @@ class SynthDriver(SynthDriverBase):
         return {"utteranceId": uid, "segments": segments, "indexesAfter": []}
 
     def cancel(self):
+        with self._lock:
+            self._cancelled_upto = self._utterance_counter
         self._pump.cancel()
         try:
             self._helper.send(proto.CANCEL, {})

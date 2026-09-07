@@ -12,7 +12,7 @@ before downloading it.
 
 ## System requirements
 
-- NVDA 2025.1 or later (including 64-bit NVDA 2026.1 and later).
+- NVDA 2026.1 or later (the first 64-bit NVDA).
 - Windows 11 or later, 64-bit. Windows 10 and earlier are not supported: the
   add-on may well run on Windows 10, but it is not tested there and problems
   that only appear there will not be fixed.

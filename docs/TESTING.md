@@ -164,7 +164,7 @@ restore) needs a keyboard-only pass before release:
 | Progress and errors | Download progress and failures are announced, not only drawn |
 | Screen reader output | Announcements are useful heard aloud, not just technically present |
 
-Configurations to cover: NVDA 2025.1 (32-bit) and the latest 2026.x (64-bit);
+Configurations to cover: NVDA 2026.1 and the latest 2026.x (64-bit);
 Windows 11; at least one low-quality and one medium-quality voice; and,
 if available, a second machine with a slower CPU to sanity-check latency.
 

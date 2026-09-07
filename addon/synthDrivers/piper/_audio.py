@@ -23,7 +23,6 @@ except Exception:  # pragma: no cover
     log = logging.getLogger("piper")
 
 # Sentinels for the feeder queue.
-_DONE = ("done",)
 _STOP = ("stop",)
 
 
@@ -37,6 +36,10 @@ class AudioPump:
         self._on_index = on_index
         self._on_done = on_done
         self._q = queue.Queue()
+        # Intake generation: bumped by cancel() so the feeder can tell items
+        # from before a cancel apart from items enqueued after it.
+        self._gen = 0
+        # Owned exclusively by the feeder thread after construction.
         self._buffer = bytearray()
         self._thread = threading.Thread(
             target=self._feed_loop, name="piperFeeder", daemon=True
@@ -46,23 +49,29 @@ class AudioPump:
     # -- frame intake (called from the helper reader thread) --------------
 
     def handle_frame(self, msg_type, payload):
+        gen = self._gen
         if msg_type == proto.AUDIO:
             _, pcm = proto.parse_audio(payload)
-            self._q.put(("audio", pcm))
+            self._q.put(("audio", gen, pcm))
         elif msg_type == proto.MARKER:
             header = proto.parse_json(payload)
-            self._q.put(("marker", header["index"]))
+            self._q.put(("marker", gen, header["index"]))
         elif msg_type == proto.DONE:
-            self._q.put(_DONE)
+            self._q.put(("done", gen, None))
 
     def cancel(self):
         """Immediately stop playback and discard everything queued. Called on
-        every interrupting keystroke, so it must be fast."""
+        every interrupting keystroke, so it must be fast.
+
+        The generation bump makes the feeder drop any item it already held
+        when the queue was drained, and the "reset" item makes it discard
+        whatever such an item managed to buffer; both close the race where a
+        burst of the cancelled utterance played at the start of the next one.
+        """
+        self._gen += 1
         self._player.stop()
         _drain(self._q)
-        self._buffer = bytearray()
-        # Wake the feeder in case it is blocked so it re-checks state.
-        self._q.put(("flush", None))
+        self._q.put(("reset", self._gen, None))
 
     def pause(self, switch):
         self._player.pause(switch)
@@ -76,18 +85,24 @@ class AudioPump:
         while True:
             item = self._q.get()
             kind = item[0]
+            if kind == "stop":
+                break
+            gen = item[1]
+            if gen != self._gen:
+                # From before a cancel: the queue was drained, but this item
+                # was already in hand (or raced the drain). Drop it.
+                continue
             if kind == "audio":
-                self._buffer += item[1]
+                self._buffer += item[2]
             elif kind == "marker":
-                self._flush(on_done=self._make_index_cb(item[1]))
+                self._flush(on_done=self._make_index_cb(item[2]))
             elif kind == "done":
                 self._flush()
                 self._finish_done()
-            elif kind == "flush":
-                # Buffer was already cleared by cancel(); nothing to do.
-                pass
-            elif kind == "stop":
-                break
+            elif kind == "reset":
+                # A cancel happened: anything a stale item buffered since the
+                # drain belongs to the cancelled utterance.
+                self._buffer = bytearray()
 
     def _flush(self, on_done=None):
         if not self._buffer:
